@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AirWatch — IoT Air Quality Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:       #080c10;
+  --bg2:      #0d1318;
+  --bg3:      #111920;
+  --panel:    #0f1a22;
+  --border:   #1a2d3a;
+  --teal:     #00e5cc;
+  --teal2:    #00b8a4;
+  --blue:     #00aaff;
+  --warn:     #ffaa00;
+  --danger:   #ff3344;
+  --safe:     #00e5a0;
+  --text:     #c8dde8;
+  --text2:    #5a7a8a;
+  --mono:     'Share Tech Mono', monospace;
+  --display:  'Rajdhani', sans-serif;
+  --glow-t:   0 0 20px rgba(0,229,204,0.35);
+  --glow-d:   0 0 20px rgba(255,51,68,0.45);
+  --glow-w:   0 0 20px rgba(255,170,0,0.35);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--display);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* SCANLINE OVERLAY */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 9999;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  pointer-events: none;
+}
+
+/* GRID BACKGROUND */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(0,229,204,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,204,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* ── HEADER ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,12,16,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.logo {
+  display: flex; align-items: center; gap: 0.8rem;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  border: 1.5px solid var(--teal);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.logo-icon::before {
+  content: '';
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--teal);
+  box-shadow: var(--glow-t);
+  animation: breathe 2s ease-in-out infinite;
+}
+@keyframes breathe { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.3);opacity:0.7} }
+
+.logo-text { font-size: 1.3rem; font-weight: 700; letter-spacing: 0.12em; color: #fff; }
+.logo-text span { color: var(--teal); }
+
+.header-right { display: flex; align-items: center; gap: 1.5rem; }
+.status-pill {
+  display: flex; align-items: center; gap: 0.5rem;
+  border: 1px solid;
+  padding: 0.3rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  transition: all 0.4s;
+}
+.status-pill.online  { border-color: var(--safe);   color: var(--safe); }
+.status-pill.alert   { border-color: var(--danger);  color: var(--danger); animation: flashBorder 0.5s ease-in-out infinite alternate; }
+.status-pill.warning { border-color: var(--warn);    color: var(--warn); }
+@keyframes flashBorder { from{border-color:var(--danger)} to{border-color:rgba(255,51,68,0.3)} }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-dot.pulse { animation: breathe 1s ease-in-out infinite; }
+
+.clock { font-family: var(--mono); font-size: 0.78rem; color: var(--text2); }
+
+/* ── ALERT BANNER ── */
+#alertBanner {
+  display: none;
+  position: fixed; top: 60px; left: 0; right: 0; z-index: 99;
+  background: var(--danger);
+  padding: 0.9rem 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  transform: translateY(-100%);
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+}
+#alertBanner.show { transform: translateY(0); }
+.banner-text { font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; color: #fff; }
+.banner-text span { font-family: var(--mono); font-size: 0.85rem; font-weight: 400; margin-left: 1rem; opacity: 0.85; }
+.banner-close {
+  background: rgba(255,255,255,0.2); border: none; color: #fff;
+  width: 28px; height: 28px; cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ALERT OVERLAY */
+#alertOverlay {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(255,30,50,0.08);
+  pointer-events: none;
+  animation: flashScreen 0.4s ease-in-out infinite alternate;
+}
+#alertOverlay.show { display: block; }
+@keyframes flashScreen { from{background:rgba(255,30,50,0.08)} to{background:rgba(255,30,50,0.03)} }
+
+/* ── MAIN LAYOUT ── */
+main {
+  position: relative; z-index: 1;
+  max-width: 1400px; margin: 0 auto;
+  padding: 1.5rem 2rem 3rem;
+}
+
+/* TOP STATS BAR */
+.top-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  border: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+  background: var(--border);
+}
+.stat-box {
+  background: var(--panel);
+  padding: 1rem 1.4rem;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.stat-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text2); }
+.stat-value { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.04em; transition: color 0.4s; }
+.stat-unit  { font-family: var(--mono); font-size: 0.68rem; color: var(--text2); margin-left: 0.3rem; }
+.stat-bar   { height: 2px; background: var(--border); margin-top: 0.5rem; border-radius: 1px; overflow: hidden; }
+.stat-bar-fill { height: 100%; border-radius: 1px; transition: width 0.8s ease, background 0.4s; }
+
+/* ── GAUGES ROW ── */
+.gauges-section {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.gauge-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  display: flex; flex-direction: column; align-items: center;
+  position: relative; overflow: hidden;
+  transition: border-color 0.4s, box-shadow 0.4s;
+}
+.gauge-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--teal);
+  transition: background 0.4s;
+}
+.gauge-card.warning::before { background: var(--warn); }
+.gauge-card.danger::before  { background: var(--danger); }
+.gauge-card.danger { border-color: rgba(255,51,68,0.4); box-shadow: var(--glow-d); }
+.gauge-card.warning{ border-color: rgba(255,170,0,0.4); box-shadow: var(--glow-w); }
+
+.gauge-title { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text2); margin-bottom: 1rem; }
+.gauge-canvas-wrap { position: relative; width: 180px; height: 110px; }
+.gauge-number {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  text-align: center;
+}
+.gauge-num-val { font-size: 2rem; font-weight: 700; line-height: 1; transition: color 0.4s; }
+.gauge-num-unit { font-family: var(--mono); font-size: 0.68rem; color: var(--text2); }
+.gauge-pin { font-family: var(--mono); font-size: 0.6rem; color: var(--text2); margin-top: 0.8rem; letter-spacing: 0.1em; }
+.gauge-status-tag {
+  margin-top: 0.6rem;
+  font-family: var(--mono); font-size: 0.62rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid;
+  transition: all 0.4s;
+}
+
+/* ── BOTTOM GRID ── */
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 1.5rem;
+}
+
+/* CHART */
+.chart-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1.2rem 1.5rem;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.panel-title { font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
+.panel-badge {
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.1em;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--teal2);
+  color: var(--teal2);
+  text-transform: uppercase;
+}
+.chart-wrap { height: 260px; position: relative; }
+
+/* ALERT LOG */
+.log-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1.2rem 1.5rem;
+  display: flex; flex-direction: column;
+}
+.log-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 310px;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  padding-right: 0.3rem;
+}
+.log-list::-webkit-scrollbar { width: 3px; }
+.log-list::-webkit-scrollbar-track { background: var(--bg2); }
+.log-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+.log-entry {
+  border-left: 2px solid;
+  padding: 0.5rem 0.8rem;
+  background: rgba(255,255,255,0.02);
+  animation: slideIn 0.3s ease;
+}
+@keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+.log-entry.info    { border-color: var(--teal2); }
+.log-entry.warning { border-color: var(--warn); }
+.log-entry.danger  { border-color: var(--danger); }
+.log-entry.resolved{ border-color: var(--safe); }
+.log-time { font-family: var(--mono); font-size: 0.6rem; color: var(--text2); }
+.log-msg  { font-size: 0.78rem; font-weight: 500; margin-top: 0.15rem; }
+.log-val  { font-family: var(--mono); font-size: 0.65rem; color: var(--text2); margin-top: 0.1rem; }
+
+.log-empty { font-family: var(--mono); font-size: 0.72rem; color: var(--text2); text-align: center; margin-top: 1.5rem; }
+
+/* FOOTER BAR */
+.footer-bar {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border);
+  margin-top: 1.5rem;
+}
+.footer-cell {
+  background: var(--panel);
+  padding: 0.7rem 1.2rem;
+  font-family: var(--mono); font-size: 0.65rem; color: var(--text2);
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.footer-cell strong { color: var(--teal); }
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .gauges-section, .top-bar { grid-template-columns: 1fr 1fr; }
+  .bottom-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 580px) {
+  .gauges-section, .top-bar { grid-template-columns: 1fr; }
+  main { padding: 1rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ALERT OVERLAY (screen flash) -->
+<div id="alertOverlay"></div>
+
+<!-- ALERT BANNER -->
+<div id="alertBanner">
+  <div class="banner-text">
+    ⚠ POLLUTION ALERT — Gas level exceeded critical threshold!
+    <span id="bannerVal"></span>
+  </div>
+  <button class="banner-close" onclick="dismissBanner()">✕</button>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div class="logo-text">Air<span>Watch</span></div>
+  </div>
+  <div class="header-right">
+    <div class="status-pill online" id="statusPill">
+      <div class="status-dot pulse" id="statusDot"></div>
+      <span id="statusText">SYSTEM ONLINE</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- TOP STATS -->
+  <div class="top-bar">
+    <div class="stat-box">
+      <div class="stat-label">Temperature</div>
+      <div><span class="stat-value" id="statTemp">--</span><span class="stat-unit">°C</span></div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="barTemp" style="width:0%;background:var(--teal)"></div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Humidity</div>
+      <div><span class="stat-value" id="statHum">--</span><span class="stat-unit">%</span></div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="barHum" style="width:0%;background:var(--blue)"></div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Gas / Air Quality</div>
+      <div><span class="stat-value" id="statGas">--</span><span class="stat-unit">ppm</span></div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="barGas" style="width:0%;background:var(--safe)"></div></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Alert Count</div>
+      <div><span class="stat-value" id="statAlerts" style="color:var(--warn)">0</span><span class="stat-unit">events</span></div>
+      <div class="stat-bar"><div class="stat-bar-fill" id="barAlerts" style="width:0%;background:var(--warn)"></div></div>
+    </div>
+  </div>
+
+  <!-- GAUGES -->
+  <div class="gauges-section">
+
+    <!-- Temperature Gauge -->
+    <div class="gauge-card" id="cardTemp">
+      <div class="gauge-title">// Temperature — V0</div>
+      <div class="gauge-canvas-wrap">
+        <canvas id="gaugeTemp" width="180" height="110"></canvas>
+        <div class="gauge-number">
+          <div class="gauge-num-val" id="gValTemp" style="color:var(--teal)">--</div>
+          <div class="gauge-num-unit">°C</div>
+        </div>
+      </div>
+      <div class="gauge-pin">DHT11 · PIN: D4</div>
+      <div class="gauge-status-tag" id="tagTemp" style="border-color:var(--teal);color:var(--teal)">NORMAL</div>
+    </div>
+
+    <!-- Humidity Gauge -->
+    <div class="gauge-card" id="cardHum">
+      <div class="gauge-title">// Humidity — V1</div>
+      <div class="gauge-canvas-wrap">
+        <canvas id="gaugeHum" width="180" height="110"></canvas>
+        <div class="gauge-number">
+          <div class="gauge-num-val" id="gValHum" style="color:var(--blue)">--</div>
+          <div class="gauge-num-unit">%</div>
+        </div>
+      </div>
+      <div class="gauge-pin">DHT11 · PIN: D4</div>
+      <div class="gauge-status-tag" id="tagHum" style="border-color:var(--blue);color:var(--blue)">NORMAL</div>
+    </div>
+
+    <!-- Gas Gauge -->
+    <div class="gauge-card" id="cardGas">
+      <div class="gauge-title">// Gas Value — V2</div>
+      <div class="gauge-canvas-wrap">
+        <canvas id="gaugeGas" width="180" height="110"></canvas>
+        <div class="gauge-number">
+          <div class="gauge-num-val" id="gValGas" style="color:var(--safe)">--</div>
+          <div class="gauge-num-unit">ppm</div>
+        </div>
+      </div>
+      <div class="gauge-pin">MQ135 · PIN: A0 · THRESHOLD: 400</div>
+      <div class="gauge-status-tag" id="tagGas" style="border-color:var(--safe);color:var(--safe)">SAFE</div>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM: CHART + LOG -->
+  <div class="bottom-grid">
+
+    <!-- HISTORY CHART -->
+    <div class="chart-panel">
+      <div class="panel-header">
+        <div class="panel-title">Historical Readings</div>
+        <div class="panel-badge">Live · 2s interval</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="historyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ALERT LOG -->
+    <div class="log-panel">
+      <div class="panel-header">
+        <div class="panel-title">Alert Log</div>
+        <div class="panel-badge" id="logBadge">0 Events</div>
+      </div>
+      <div class="log-list" id="logList">
+        <div class="log-empty" id="logEmpty">No events yet. Monitoring...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER BAR -->
+  <div class="footer-bar">
+    <div class="footer-cell">Device: <strong>NodeMCU ESP8266</strong> &nbsp;|&nbsp; Protocol: <strong>Wi-Fi</strong></div>
+    <div class="footer-cell">Cloud: <strong>Blynk IoT</strong> &nbsp;|&nbsp; Relay Pin: <strong>D1</strong> → 5V Exhaust Fan</div>
+    <div class="footer-cell">Sensor: <strong>DHT11</strong> + <strong>MQ135</strong> &nbsp;|&nbsp; Display: <strong>16×2 I²C LCD</strong></div>
+  </div>
+
+</main>
+
+<script>
+// ── AUDIO ALERT ──
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+function playAlert() {
+  initAudio();
+  [440, 550, 440, 660].forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'square';
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + i * 0.15);
+    gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + i * 0.15 + 0.05);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + i * 0.15 + 0.13);
+    osc.start(audioCtx.currentTime + i * 0.15);
+    osc.stop(audioCtx.currentTime + i * 0.15 + 0.14);
+  });
+}
+
+// ── CLOCK ──
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-IN', {hour12: false});
+}
+setInterval(updateClock, 1000); updateClock();
+
+// ── GAUGE DRAWING ──
+function drawGauge(canvasId, value, max, color, trackColor='#1a2d3a') {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H - 10;
+  const r = 75;
+  const startAngle = Math.PI;
+  const endAngle   = 0;
+  const pct = Math.min(Math.max(value / max, 0), 1);
+  const fillAngle = startAngle + pct * Math.PI;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, endAngle);
+  ctx.strokeStyle = trackColor;
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Danger zone marker for gas (400/600)
+  if (canvasId === 'gaugeGas') {
+    const dangerPct = 400 / 600;
+    const dangerAngle = startAngle + dangerPct * Math.PI;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, dangerAngle);
+    ctx.strokeStyle = 'rgba(0,229,160,0.15)';
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // Fill
+  if (pct > 0) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, startAngle, fillAngle);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Tick marks
+  for (let i = 0; i <= 10; i++) {
+    const a = Math.PI + (i / 10) * Math.PI;
+    const inner = r - 14, outer = r - 6;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+    ctx.lineTo(cx + Math.cos(a) * outer, cy + Math.sin(a) * outer);
+    ctx.strokeStyle = i % 5 === 0 ? 'rgba(200,221,232,0.25)' : 'rgba(200,221,232,0.08)';
+    ctx.lineWidth = i % 5 === 0 ? 1.5 : 1;
+    ctx.stroke();
+  }
+
+  // Needle
+  const needleAngle = startAngle + pct * Math.PI;
+  const nx = cx + Math.cos(needleAngle) * (r - 20);
+  const ny = cy + Math.sin(needleAngle) * (r - 20);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.85;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+// ── HISTORY CHART ──
+const MAX_POINTS = 40;
+const labels = [];
+const dataTemp = [], dataHum = [], dataGas = [];
+
+const histCtx = document.getElementById('historyChart').getContext('2d');
+const histChart = new Chart(histCtx, {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [
+      { label: 'Temperature (°C)', data: dataTemp, borderColor: '#00e5cc', backgroundColor: 'rgba(0,229,204,0.05)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+      { label: 'Humidity (%)',      data: dataHum,  borderColor: '#00aaff', backgroundColor: 'rgba(0,170,255,0.05)', borderWidth: 1.5, pointRadius: 0, tension: 0.4, yAxisID: 'y' },
+      { label: 'Gas (ppm)',         data: dataGas,  borderColor: '#00e5a0', backgroundColor: 'rgba(0,229,160,0.05)', borderWidth: 2,   pointRadius: 0, tension: 0.4, yAxisID: 'y2' }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#5a7a8a', font: { family: 'Share Tech Mono', size: 10 }, boxWidth: 12 } },
+      tooltip: { backgroundColor: '#0f1a22', borderColor: '#1a2d3a', borderWidth: 1, titleFont: { family: 'Share Tech Mono' }, bodyFont: { family: 'Share Tech Mono', size: 11 } }
+    },
+    scales: {
+      x: { ticks: { color: '#3a5a6a', font: { family: 'Share Tech Mono', size: 9 }, maxTicksLimit: 8 }, grid: { color: 'rgba(26,45,58,0.6)' }, border: { color: '#1a2d3a' } },
+      y:  { position: 'left',  ticks: { color: '#5a7a8a', font: { family: 'Share Tech Mono', size: 9 } }, grid: { color: 'rgba(26,45,58,0.4)' }, border: { color: '#1a2d3a' }, title: { display: true, text: '°C / %', color: '#3a5a6a', font: { size: 9 } } },
+      y2: { position: 'right', ticks: { color: '#5a7a8a', font: { family: 'Share Tech Mono', size: 9 } }, grid: { drawOnChartArea: false }, border: { color: '#1a2d3a' }, title: { display: true, text: 'ppm', color: '#3a5a6a', font: { size: 9 } } }
+    }
+  }
+});
+
+// ── THRESHOLD LINE PLUGIN ──
+Chart.register({
+  id: 'thresholdLine',
+  afterDraw(chart) {
+    const y2 = chart.scales.y2;
+    if (!y2) return;
+    const ctx = chart.ctx;
+    const yPx = y2.getPixelForValue(400);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = 'rgba(255,51,68,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(chart.chartArea.left, yPx);
+    ctx.lineTo(chart.chartArea.right, yPx);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,51,68,0.7)';
+    ctx.font = '9px Share Tech Mono';
+    ctx.fillText('THRESHOLD 400', chart.chartArea.right - 90, yPx - 4);
+    ctx.restore();
+  }
+});
+
+// ── ALERT LOG ──
+let alertCount = 0;
+let bannerDismissed = false;
+let wasInAlert = false;
+
+function addLog(type, msg, val) {
+  const list = document.getElementById('logList');
+  const empty = document.getElementById('logEmpty');
+  if (empty) empty.remove();
+
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  const now = new Date().toLocaleTimeString('en-IN', {hour12: false});
+  entry.innerHTML = `<div class="log-time">${now}</div><div class="log-msg">${msg}</div><div class="log-val">${val}</div>`;
+  list.insertBefore(entry, list.firstChild);
+
+  // Keep max 50 entries
+  while (list.children.length > 50) list.removeChild(list.lastChild);
+
+  if (type === 'danger' || type === 'warning') {
+    alertCount++;
+    document.getElementById('statAlerts').textContent = alertCount;
+    document.getElementById('logBadge').textContent = alertCount + ' Events';
+    const bar = document.getElementById('barAlerts');
+    bar.style.width = Math.min(alertCount * 10, 100) + '%';
+  }
+}
+
+// ── DISMISS BANNER ──
+function dismissBanner() {
+  document.getElementById('alertBanner').classList.remove('show');
+  bannerDismissed = true;
+}
+
+// ── SIMULATE DATA ──
+let tick = 0;
+let gasSpike = false;
+let spikeCountdown = 0;
+
+function simulate() {
+  tick++;
+
+  // Inject spike periodically for demo
+  if (tick % 45 === 0) { gasSpike = true; spikeCountdown = 12; }
+  if (spikeCountdown > 0) { spikeCountdown--; } else { gasSpike = false; }
+
+  const temp = parseFloat((28 + 6 * Math.sin(tick * 0.08) + (Math.random() - 0.5) * 1.5).toFixed(1));
+  const hum  = parseFloat((55 + 20 * Math.sin(tick * 0.05 + 1) + (Math.random() - 0.5) * 2).toFixed(1));
+  const gasBase = 80 + 40 * Math.sin(tick * 0.1) + (Math.random() - 0.5) * 20;
+  const gas  = gasSpike
+    ? Math.round(420 + Math.random() * 180)
+    : Math.round(Math.max(30, gasBase));
+
+  const now = new Date().toLocaleTimeString('en-IN', {hour12: false});
+
+  // ── UPDATE STATS ──
+  document.getElementById('statTemp').textContent = temp;
+  document.getElementById('statHum').textContent  = hum;
+  document.getElementById('statGas').textContent  = gas;
+  document.getElementById('barTemp').style.width  = (temp / 60 * 100) + '%';
+  document.getElementById('barHum').style.width   = hum + '%';
+
+  const gasPct = Math.min(gas / 600, 1) * 100;
+  const barGas = document.getElementById('barGas');
+  barGas.style.width = gasPct + '%';
+
+  // ── GAUGE COLORS ──
+  let gasColor, gasStatus, gasClass;
+  if (gas > 400) {
+    gasColor = 'var(--danger)'; gasStatus = '⚠ DANGER'; gasClass = 'danger';
+  } else if (gas > 280) {
+    gasColor = 'var(--warn)'; gasStatus = '△ WARNING'; gasClass = 'warning';
+  } else {
+    gasColor = 'var(--safe)'; gasStatus = '✓ SAFE'; gasClass = '';
+  }
+  barGas.style.background = gasColor;
+
+  document.getElementById('statTemp').style.color = temp > 38 ? 'var(--warn)' : 'var(--teal)';
+  document.getElementById('statGas').style.color  = gasColor;
+
+  // Draw gauges
+  drawGauge('gaugeTemp', temp, 60, temp > 38 ? 'var(--warn)' : 'var(--teal)');
+  drawGauge('gaugeHum',  hum,  100, 'var(--blue)');
+  drawGauge('gaugeGas',  gas,  600, gasColor);
+
+  // Update gauge displays
+  document.getElementById('gValTemp').textContent = temp;
+  document.getElementById('gValTemp').style.color = temp > 38 ? 'var(--warn)' : 'var(--teal)';
+  document.getElementById('gValHum').textContent  = hum;
+  document.getElementById('gValGas').textContent  = gas;
+  document.getElementById('gValGas').style.color  = gasColor;
+
+  const cardGas = document.getElementById('cardGas');
+  cardGas.className = 'gauge-card ' + gasClass;
+  document.getElementById('tagGas').textContent = gasStatus;
+  document.getElementById('tagGas').style.borderColor = gasColor;
+  document.getElementById('tagGas').style.color = gasColor;
+
+  // ── ALERT SYSTEM ──
+  const inAlert = gas > 400;
+  const banner  = document.getElementById('alertBanner');
+  const overlay = document.getElementById('alertOverlay');
+  const pill    = document.getElementById('statusPill');
+  const pillTxt = document.getElementById('statusText');
+
+  if (inAlert) {
+    if (!wasInAlert) {
+      // Rising edge — new alert
+      playAlert();
+      bannerDismissed = false;
+      document.getElementById('bannerVal').textContent = `Gas: ${gas} ppm | ${now}`;
+      addLog('danger', '🚨 CRITICAL: Gas threshold exceeded — Exhaust fan ACTIVATED', `Gas: ${gas} ppm | Relay: ON`);
+    }
+    if (!bannerDismissed) banner.classList.add('show');
+    overlay.classList.add('show');
+    pill.className = 'status-pill alert';
+    pillTxt.textContent = 'ALERT ACTIVE';
+  } else {
+    if (wasInAlert) {
+      // Falling edge — resolved
+      addLog('resolved', '✅ Resolved: Gas levels returned to safe range — Fan OFF', `Gas: ${gas} ppm | Relay: OFF`);
+    }
+    banner.classList.remove('show');
+    overlay.classList.remove('show');
+    pill.className = gas > 280 ? 'status-pill warning' : 'status-pill online';
+    pillTxt.textContent = gas > 280 ? 'WARNING' : 'SYSTEM ONLINE';
+  }
+
+  // Temp alert
+  if (temp > 38 && !(temp > 38 && tick % 30 !== 0)) {
+    // Only log occasionally
+  }
+
+  wasInAlert = inAlert;
+
+  // ── CHART UPDATE ──
+  labels.push(now);
+  dataTemp.push(temp);
+  dataHum.push(hum);
+  dataGas.push(gas);
+  if (labels.length > MAX_POINTS) {
+    labels.shift(); dataTemp.shift(); dataHum.shift(); dataGas.shift();
+  }
+  histChart.data.datasets[2].borderColor = gasColor;
+  histChart.update('none');
+}
+
+// ── BOOT ──
+document.addEventListener('click', initAudio, { once: true });
+
+// Initial log
+setTimeout(() => {
+  addLog('info', '🟢 System online — NodeMCU connected to Blynk Cloud', 'Wi-Fi: Connected | RSSI: -62 dBm');
+}, 800);
+
+// Start loop
+simulate();
+setInterval(simulate, 2000);
+</script>
+</body>
+</html>
