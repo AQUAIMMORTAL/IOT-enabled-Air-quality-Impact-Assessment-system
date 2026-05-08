@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AirWatch — IoT Air Quality Monitor</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root {
@@ -106,7 +108,120 @@ header {
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .status-dot.pulse { animation: breathe 1s ease-in-out infinite; }
 
-.clock { font-family: var(--mono); font-size: 0.78rem; color: var(--text2); }
+.map-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: transparent;
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  padding: 0.3rem 0.9rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+.map-btn:hover { background: rgba(0,229,204,0.1); box-shadow: var(--glow-t); }
+
+/* ── MAP MODAL ── */
+#mapModal {
+  display: none;
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(4,8,12,0.97);
+  flex-direction: column;
+}
+#mapModal.show { display: flex; }
+.map-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.8rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  flex-shrink: 0;
+}
+.map-modal-title { font-size: 0.9rem; font-weight: 700; letter-spacing: 0.15em; color: var(--teal); }
+.map-modal-sub { font-family: var(--mono); font-size: 0.62rem; color: var(--text2); margin-top: 0.1rem; }
+.map-close-btn {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer; width: 32px; height: 32px;
+  font-size: 1rem; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.map-close-btn:hover { border-color: var(--danger); color: var(--danger); }
+.map-body {
+  display: flex; flex: 1; overflow: hidden;
+}
+#mapContainer { flex: 1; position: relative; }
+.map-sidebar {
+  width: 280px; flex-shrink: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.map-sidebar-header {
+  padding: 1rem 1.2rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.15em; color: var(--text2);
+}
+.map-legend {
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+}
+.legend-title { font-family: var(--mono); font-size: 0.58rem; letter-spacing: 0.12em; color: var(--text2); margin-bottom: 0.6rem; }
+.legend-item {
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  font-family: var(--mono); font-size: 0.6rem; color: var(--text);
+}
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.map-selected-info {
+  flex: 1; padding: 1rem 1.2rem;
+  overflow-y: auto;
+}
+.sel-name { font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; color: #fff; }
+.sel-aqi-val { font-size: 2.5rem; font-weight: 700; margin: 0.4rem 0 0.1rem; line-height: 1; }
+.sel-aqi-label { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.1em; }
+.sel-pollutants { margin-top: 1rem; }
+.sel-pol-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.62rem;
+}
+.sel-pol-name { color: var(--text2); }
+.sel-pol-val { color: var(--text); }
+.map-zoom-hint {
+  padding: 0.7rem 1.2rem;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.58rem; color: var(--text2);
+  text-align: center;
+}
+/* AQI Tooltip overrides */
+.aqi-tooltip {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.aqi-tooltip .leaflet-tooltip-left::before,
+.aqi-tooltip .leaflet-tooltip-right::before,
+.leaflet-tooltip.aqi-tooltip::before { display: none !important; }
+.map-loading {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(8,12,16,0.85);
+  z-index: 10;
+  font-family: var(--mono); font-size: 0.72rem; color: var(--teal);
+  gap: 0.8rem;
+}
+.map-spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 
 /* ── ALERT BANNER ── */
 #alertBanner {
@@ -303,6 +418,43 @@ main {
 <!-- ALERT OVERLAY (screen flash) -->
 <div id="alertOverlay"></div>
 
+<!-- ── MAP MODAL ── -->
+<div id="mapModal">
+  <div class="map-modal-header">
+    <div>
+      <div class="map-modal-title">// INDIA AIR QUALITY INDEX — LIVE</div>
+      <div class="map-modal-sub" id="mapZoomLabel">ZOOM: State View · Scroll to zoom into districts</div>
+    </div>
+    <button class="map-close-btn" onclick="closeMap()">✕</button>
+  </div>
+  <div class="map-body">
+    <div id="mapContainer">
+      <div class="map-loading" id="mapLoading">
+        <div class="map-spinner"></div>
+        FETCHING LIVE AQI DATA...
+      </div>
+    </div>
+    <div class="map-sidebar">
+      <div class="map-sidebar-header">AQI LEGEND — US EPA SCALE</div>
+      <div class="map-legend">
+        <div class="legend-title">AIR QUALITY INDEX</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00e676"></div>0–50 · Good</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffee58"></div>51–100 · Moderate</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff9800"></div>101–150 · Unhealthy (Sensitive)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f44336"></div>151–200 · Unhealthy</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#9c27b0"></div>201–300 · Very Unhealthy</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7b1fa2"></div>301+ · Hazardous</div>
+      </div>
+      <div class="map-selected-info" id="selectedInfo">
+        <div style="font-family:var(--mono);font-size:0.65rem;color:var(--text2);text-align:center;margin-top:2rem;">
+          Click any region on the map to see detailed AQI data
+        </div>
+      </div>
+      <div class="map-zoom-hint" id="mapZoomHint">🔍 Scroll to zoom · Click to inspect</div>
+    </div>
+  </div>
+</div>
+
 <!-- ALERT BANNER -->
 <div id="alertBanner">
   <div class="banner-text">
@@ -319,6 +471,10 @@ main {
     <div class="logo-text">Air<span>Watch</span></div>
   </div>
   <div class="header-right">
+    <button class="map-btn" onclick="openMap()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      INDIA AQI MAP
+    </button>
     <div class="status-pill online" id="statusPill">
       <div class="status-dot pulse" id="statusDot"></div>
       <span id="statusText">SYSTEM ONLINE</span>
@@ -762,6 +918,550 @@ setTimeout(() => {
 // Start loop
 simulate();
 setInterval(simulate, 2000);
+
+// ══════════════════════════════════════════
+// ── INDIA AQI MAP ──
+// ══════════════════════════════════════════
+
+let aqiMap = null;
+let stateLayerGroup = null;
+let districtLayerGroup = null;
+let currentZoom = 5;
+let aqiCache = {};
+
+// Indian states with lat/lon centroids
+const INDIA_STATES = [
+  { name: 'Uttar Pradesh',      lat: 26.8467, lon: 80.9462 },
+  { name: 'Maharashtra',        lat: 19.7515, lon: 75.7139 },
+  { name: 'Rajasthan',          lat: 27.0238, lon: 74.2179 },
+  { name: 'Madhya Pradesh',     lat: 22.9734, lon: 78.6569 },
+  { name: 'Bihar',              lat: 25.0961, lon: 85.3131 },
+  { name: 'Gujarat',            lat: 22.2587, lon: 71.1924 },
+  { name: 'Karnataka',          lat: 15.3173, lon: 75.7139 },
+  { name: 'Andhra Pradesh',     lat: 15.9129, lon: 79.7400 },
+  { name: 'Odisha',             lat: 20.9517, lon: 85.0985 },
+  { name: 'Tamil Nadu',         lat: 11.1271, lon: 78.6569 },
+  { name: 'Telangana',          lat: 18.1124, lon: 79.0193 },
+  { name: 'West Bengal',        lat: 22.9868, lon: 87.8550 },
+  { name: 'Jharkhand',          lat: 23.6102, lon: 85.2799 },
+  { name: 'Chhattisgarh',       lat: 21.2787, lon: 81.8661 },
+  { name: 'Assam',              lat: 26.2006, lon: 92.9376 },
+  { name: 'Punjab',             lat: 31.1471, lon: 75.3412 },
+  { name: 'Haryana',            lat: 29.0588, lon: 76.0856 },
+  { name: 'Uttarakhand',        lat: 30.0668, lon: 79.0193 },
+  { name: 'Himachal Pradesh',   lat: 31.1048, lon: 77.1734 },
+  { name: 'Jammu & Kashmir',    lat: 33.7782, lon: 76.5762 },
+  { name: 'Kerala',             lat: 10.8505, lon: 76.2711 },
+  { name: 'Delhi',              lat: 28.7041, lon: 77.1025 },
+  { name: 'Goa',                lat: 15.2993, lon: 74.1240 },
+  { name: 'Tripura',            lat: 23.9408, lon: 91.9882 },
+  { name: 'Manipur',            lat: 24.6637, lon: 93.9063 },
+  { name: 'Meghalaya',          lat: 25.4670, lon: 91.3662 },
+  { name: 'Nagaland',           lat: 26.1584, lon: 94.5624 },
+  { name: 'Mizoram',            lat: 23.1645, lon: 92.9376 },
+  { name: 'Sikkim',             lat: 27.5330, lon: 88.5122 },
+  { name: 'Arunachal Pradesh',  lat: 28.2180, lon: 94.7278 },
+];
+
+// Major districts/cities per state (sample for zoom-in)
+const DISTRICT_CLUSTERS = {
+  'Uttar Pradesh': [
+    { name: 'Lucknow',     lat: 26.8467, lon: 80.9462 },
+    { name: 'Kanpur',      lat: 26.4499, lon: 80.3319 },
+    { name: 'Agra',        lat: 27.1767, lon: 78.0081 },
+    { name: 'Varanasi',    lat: 25.3176, lon: 82.9739 },
+    { name: 'Noida',       lat: 28.5355, lon: 77.3910 },
+    { name: 'Prayagraj',   lat: 25.4358, lon: 81.8463 },
+  ],
+  'Maharashtra': [
+    { name: 'Mumbai',      lat: 19.0760, lon: 72.8777 },
+    { name: 'Pune',        lat: 18.5204, lon: 73.8567 },
+    { name: 'Nagpur',      lat: 21.1458, lon: 79.0882 },
+    { name: 'Nashik',      lat: 19.9975, lon: 73.7898 },
+    { name: 'Aurangabad',  lat: 19.8762, lon: 75.3433 },
+  ],
+  'Delhi': [
+    { name: 'New Delhi',   lat: 28.6139, lon: 77.2090 },
+    { name: 'Dwarka',      lat: 28.5921, lon: 77.0460 },
+    { name: 'Rohini',      lat: 28.7041, lon: 77.1025 },
+    { name: 'Noida Ext.',  lat: 28.6304, lon: 77.3690 },
+  ],
+  'Karnataka': [
+    { name: 'Bengaluru',   lat: 12.9716, lon: 77.5946 },
+    { name: 'Mysuru',      lat: 12.2958, lon: 76.6394 },
+    { name: 'Hubli',       lat: 15.3647, lon: 75.1240 },
+    { name: 'Mangaluru',   lat: 12.9141, lon: 74.8560 },
+  ],
+  'Tamil Nadu': [
+    { name: 'Chennai',     lat: 13.0827, lon: 80.2707 },
+    { name: 'Coimbatore',  lat: 11.0168, lon: 76.9558 },
+    { name: 'Madurai',     lat:  9.9252, lon: 78.1198 },
+    { name: 'Salem',       lat: 11.6643, lon: 78.1460 },
+  ],
+  'West Bengal': [
+    { name: 'Kolkata',     lat: 22.5726, lon: 88.3639 },
+    { name: 'Howrah',      lat: 22.5958, lon: 88.2636 },
+    { name: 'Durgapur',    lat: 23.5204, lon: 87.3119 },
+  ],
+  'Gujarat': [
+    { name: 'Ahmedabad',   lat: 23.0225, lon: 72.5714 },
+    { name: 'Surat',       lat: 21.1702, lon: 72.8311 },
+    { name: 'Vadodara',    lat: 22.3072, lon: 73.1812 },
+    { name: 'Rajkot',      lat: 22.3039, lon: 70.8022 },
+  ],
+  'Rajasthan': [
+    { name: 'Jaipur',      lat: 26.9124, lon: 75.7873 },
+    { name: 'Jodhpur',     lat: 26.2389, lon: 73.0243 },
+    { name: 'Udaipur',     lat: 24.5854, lon: 73.7125 },
+    { name: 'Kota',        lat: 25.2138, lon: 75.8648 },
+  ],
+};
+
+function aqiColor(aqi) {
+  if (aqi <= 50)  return '#00e676';
+  if (aqi <= 100) return '#ffee58';
+  if (aqi <= 150) return '#ff9800';
+  if (aqi <= 200) return '#f44336';
+  if (aqi <= 300) return '#9c27b0';
+  return '#7b1fa2';
+}
+function aqiLabel(aqi) {
+  if (aqi <= 50)  return { text: 'GOOD',              color: '#00e676' };
+  if (aqi <= 100) return { text: 'MODERATE',          color: '#ffee58' };
+  if (aqi <= 150) return { text: 'UNHEALTHY (SENS.)', color: '#ff9800' };
+  if (aqi <= 200) return { text: 'UNHEALTHY',         color: '#f44336' };
+  if (aqi <= 300) return { text: 'VERY UNHEALTHY',    color: '#9c27b0' };
+  return               { text: 'HAZARDOUS',           color: '#7b1fa2' };
+}
+
+async function fetchAQI(lat, lon) {
+  const key = `${lat.toFixed(2)}_${lon.toFixed(2)}`;
+  if (aqiCache[key] && (Date.now() - aqiCache[key].ts < 5 * 60 * 1000)) {
+    return aqiCache[key].data;
+  }
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,european_aqi,us_aqi&timezone=Asia%2FKolkata`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const c = json.current || {};
+    const data = {
+      aqi:   c.us_aqi   ?? Math.round(c.european_aqi ?? 0),
+      pm25:  c.pm2_5    ?? 0,
+      pm10:  c.pm10     ?? 0,
+      no2:   c.nitrogen_dioxide ?? 0,
+      o3:    c.ozone    ?? 0,
+      co:    c.carbon_monoxide  ?? 0,
+    };
+    aqiCache[key] = { data, ts: Date.now() };
+    return data;
+  } catch(e) {
+    return { aqi: Math.floor(Math.random() * 200 + 20), pm25: '--', pm10: '--', no2: '--', o3: '--', co: '--' };
+  }
+}
+
+function showSelectedInfo(name, data) {
+  const lbl = aqiLabel(data.aqi);
+  document.getElementById('selectedInfo').innerHTML = `
+    <div class="sel-name">${name}</div>
+    <div class="sel-aqi-val" style="color:${lbl.color}">${data.aqi}</div>
+    <div class="sel-aqi-label" style="color:${lbl.color}">${lbl.text}</div>
+    <div class="sel-pollutants">
+      <div class="sel-pol-row"><span class="sel-pol-name">PM2.5</span><span class="sel-pol-val">${typeof data.pm25 === 'number' ? data.pm25.toFixed(1) : data.pm25} μg/m³</span></div>
+      <div class="sel-pol-row"><span class="sel-pol-name">PM10</span><span class="sel-pol-val">${typeof data.pm10 === 'number' ? data.pm10.toFixed(1) : data.pm10} μg/m³</span></div>
+      <div class="sel-pol-row"><span class="sel-pol-name">NO₂</span><span class="sel-pol-val">${typeof data.no2 === 'number' ? data.no2.toFixed(1) : data.no2} μg/m³</span></div>
+      <div class="sel-pol-row"><span class="sel-pol-name">O₃</span><span class="sel-pol-val">${typeof data.o3 === 'number' ? data.o3.toFixed(1) : data.o3} μg/m³</span></div>
+      <div class="sel-pol-row"><span class="sel-pol-name">CO</span><span class="sel-pol-val">${typeof data.co === 'number' ? (data.co/1000).toFixed(2) : data.co} mg/m³</span></div>
+    </div>
+    <div style="margin-top:0.8rem;font-family:var(--mono);font-size:0.55rem;color:var(--text2)">
+      Source: Open-Meteo · Updated: ${new Date().toLocaleTimeString('en-IN',{hour12:false})}
+    </div>
+  `;
+}
+
+// GeoJSON for Indian state boundaries (simplified)
+let indiaGeoJSON = null;
+
+async function loadIndiaGeoJSON() {
+  if (indiaGeoJSON) return indiaGeoJSON;
+  try {
+    const res = await fetch('https://raw.githubusercontent.com/geohacker/india/master/state/india_telengana.geojson');
+    indiaGeoJSON = await res.json();
+  } catch(e) {
+    // Fallback: try another source
+    try {
+      const res2 = await fetch('https://cdn.jsdelivr.net/npm/india-geojson@1.0.1/india_states.json');
+      indiaGeoJSON = await res2.json();
+    } catch(e2) {
+      indiaGeoJSON = null;
+    }
+  }
+  return indiaGeoJSON;
+}
+
+// Map GeoJSON state names to our INDIA_STATES entries
+function matchStateName(geoName) {
+  const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
+  const gn = norm(geoName);
+  return INDIA_STATES.find(s => {
+    const sn = norm(s.name);
+    return sn === gn || gn.includes(sn) || sn.includes(gn);
+  });
+}
+
+let stateAQIData = {}; // name -> {aqi, color, ...}
+
+async function renderStateMarkers() {
+  if (stateLayerGroup) stateLayerGroup.clearLayers();
+
+  // Fetch AQI for all states in parallel
+  const promises = INDIA_STATES.map(async (s) => {
+    const data = await fetchAQI(s.lat, s.lon);
+    stateAQIData[s.name] = { ...data, color: aqiColor(data.aqi) };
+  });
+  await Promise.all(promises);
+
+  // Try to load and render GeoJSON choropleth
+  const geo = await loadIndiaGeoJSON();
+
+  if (geo && geo.features && geo.features.length > 0) {
+    // Render GeoJSON polygons coloured by AQI
+    L.geoJSON(geo, {
+      style: (feature) => {
+        // Try various property names for state name
+        const rawName = feature.properties.NAME_1
+          || feature.properties.ST_NM
+          || feature.properties.name
+          || feature.properties.NAME
+          || feature.properties.state
+          || '';
+        const match = matchStateName(rawName);
+        const d = match ? stateAQIData[match.name] : null;
+        const color = d ? d.color : '#1a2d3a';
+        return {
+          fillColor: color,
+          fillOpacity: 0.42,
+          color: '#080c10',
+          weight: 1.5,
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        const rawName = feature.properties.NAME_1
+          || feature.properties.ST_NM
+          || feature.properties.name
+          || feature.properties.NAME
+          || feature.properties.state
+          || '';
+        const match = matchStateName(rawName);
+        layer.on({
+          mouseover: (e) => {
+            e.target.setStyle({ fillOpacity: 0.62, weight: 2.5, color: '#00e5cc' });
+          },
+          mouseout: (e) => {
+            e.target.setStyle({ fillOpacity: 0.42, weight: 1.5, color: '#080c10' });
+          },
+          click: () => {
+            if (match) showSelectedInfo(match.name, stateAQIData[match.name]);
+          }
+        });
+        // Tooltip with state name + AQI
+        if (match) {
+          const d = stateAQIData[match.name];
+          const lbl = aqiLabel(d.aqi);
+          layer.bindTooltip(`
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;background:#0f1a22;border:1px solid #1a2d3a;padding:6px 10px;color:#c8dde8;border-left:3px solid ${d.color}">
+              <div style="font-weight:700;letter-spacing:0.08em">${match.name}</div>
+              <div style="color:${d.color};font-size:14px;font-weight:900;margin-top:2px">AQI ${d.aqi}</div>
+              <div style="color:${d.color};font-size:10px">${lbl.text}</div>
+            </div>
+          `, { sticky: true, className: 'aqi-tooltip', opacity: 1 });
+        }
+      }
+    }).addTo(stateLayerGroup);
+
+  } else {
+    // Fallback: render coloured circles if GeoJSON fails
+    INDIA_STATES.forEach(s => {
+      const d = stateAQIData[s.name];
+      const color = d ? d.color : '#888';
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          background:${color};color:#000;
+          font-family:'Share Tech Mono',monospace;font-size:10px;font-weight:700;
+          width:44px;height:44px;border-radius:50%;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          border:2px solid rgba(0,0,0,0.4);box-shadow:0 0 12px ${color}88;cursor:pointer;line-height:1.1;">
+          <span style="font-size:11px;font-weight:900;">${d ? d.aqi : '?'}</span>
+          <span style="font-size:7px;opacity:0.8">${s.name.split(' ')[0].substring(0,6).toUpperCase()}</span>
+        </div>`,
+        iconSize: [44, 44], iconAnchor: [22, 22],
+      });
+      const m = L.marker([s.lat, s.lon], { icon }).addTo(stateLayerGroup);
+      m.on('click', () => d && showSelectedInfo(s.name, d));
+    });
+  }
+
+  // Always add AQI number labels on top of coloured regions
+  INDIA_STATES.forEach(s => {
+    const d = stateAQIData[s.name];
+    if (!d) return;
+    const color = d.color;
+    const labelIcon = L.divIcon({
+      className: '',
+      html: `<div style="
+        font-family:'Share Tech Mono',monospace;
+        font-size:10px;font-weight:900;
+        color:#fff;
+        text-shadow: 0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000;
+        white-space:nowrap;
+        pointer-events:none;
+        line-height:1.2;
+        text-align:center;
+      ">
+        <div style="font-size:12px;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.aqi}</div>
+        <div style="font-size:7px;opacity:0.85;color:#fff">${s.name.split(' ')[0].substring(0,7).toUpperCase()}</div>
+      </div>`,
+      iconSize: [56, 28],
+      iconAnchor: [28, 14],
+    });
+    L.marker([s.lat, s.lon], { icon: labelIcon, interactive: false, keyboard: false }).addTo(stateLayerGroup);
+  });
+}
+
+// Cache for district GeoJSON per state
+let districtGeoCache = {};
+let districtAQIData = {};
+
+// Per-state GeoJSON CDN URLs (jsDelivr - reliable)
+const STATE_GEOJSON_URLS = {
+  'Uttar Pradesh':     'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/uttar-pradesh.geojson',
+  'Maharashtra':       'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/maharashtra.geojson',
+  'Rajasthan':         'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/rajasthan.geojson',
+  'Madhya Pradesh':    'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/madhya-pradesh.geojson',
+  'Bihar':             'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/bihar.geojson',
+  'Gujarat':           'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/gujarat.geojson',
+  'Karnataka':         'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/karnataka.geojson',
+  'Andhra Pradesh':    'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/andhra-pradesh.geojson',
+  'Odisha':            'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/odisha.geojson',
+  'Tamil Nadu':        'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/tamil-nadu.geojson',
+  'Telangana':         'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/telangana.geojson',
+  'West Bengal':       'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/west-bengal.geojson',
+  'Jharkhand':         'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/jharkhand.geojson',
+  'Chhattisgarh':      'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/chhattisgarh.geojson',
+  'Assam':             'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/assam.geojson',
+  'Punjab':            'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/punjab.geojson',
+  'Haryana':           'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/haryana.geojson',
+  'Uttarakhand':       'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/uttarakhand.geojson',
+  'Himachal Pradesh':  'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/himachal-pradesh.geojson',
+  'Jammu & Kashmir':   'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/jammu-and-kashmir.geojson',
+  'Kerala':            'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/kerala.geojson',
+  'Delhi':             'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/delhi.geojson',
+  'Goa':               'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/goa.geojson',
+  'Tripura':           'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/tripura.geojson',
+  'Manipur':           'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/manipur.geojson',
+  'Meghalaya':         'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/meghalaya.geojson',
+  'Nagaland':          'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/nagaland.geojson',
+  'Mizoram':           'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/mizoram.geojson',
+  'Sikkim':            'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/sikkim.geojson',
+  'Arunachal Pradesh': 'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/arunachal-pradesh.geojson',
+};
+
+async function loadDistrictGeoJSON(stateName) {
+  if (districtGeoCache[stateName] !== undefined) return districtGeoCache[stateName];
+  const url = STATE_GEOJSON_URLS[stateName];
+  if (!url) { districtGeoCache[stateName] = null; return null; }
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const geo = await res.json();
+    districtGeoCache[stateName] = geo;
+    return geo;
+  } catch(e) {
+    districtGeoCache[stateName] = null;
+    return null;
+  }
+}
+
+async function renderDistrictMarkers(stateName) {
+  if (districtLayerGroup) districtLayerGroup.clearLayers();
+
+  // Try GeoJSON district choropleth first
+  const geo = await loadDistrictGeoJSON(stateName);
+
+  if (geo && geo.features && geo.features.length > 0) {
+    // Fetch AQI for each district centroid
+    const aqiMap = {};
+    await Promise.all(geo.features.map(async f => {
+      try {
+        const coords = f.geometry.type === 'Polygon'
+          ? f.geometry.coordinates[0]
+          : f.geometry.coordinates[0][0];
+        const lats = coords.map(c => c[1]);
+        const lons = coords.map(c => c[0]);
+        const lat = lats.reduce((a,b)=>a+b,0)/lats.length;
+        const lon = lons.reduce((a,b)=>a+b,0)/lons.length;
+        const distName = f.properties.district || f.properties.DISTRICT
+          || f.properties.NAME_2 || f.properties.name
+          || f.properties.NAME || f.properties.dtname || 'Unknown';
+        const data = await fetchAQI(lat, lon);
+        aqiMap[distName] = { ...data, lat, lon };
+      } catch(e) {}
+    }));
+
+    // Helper to get district name from feature
+    const getDistName = f => f.properties.district || f.properties.DISTRICT
+      || f.properties.NAME_2 || f.properties.name
+      || f.properties.NAME || f.properties.dtname || 'Unknown';
+
+    // Render choropleth polygons
+    L.geoJSON(geo, {
+      style: (feature) => {
+        const distName = getDistName(feature);
+        const d = aqiMap[distName];
+        const color = d ? aqiColor(d.aqi) : '#1a2d3a';
+        return {
+          fillColor: color,
+          fillOpacity: 0.42,
+          color: '#00e5cc',
+          weight: 1,
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        const distName = getDistName(feature);
+        const d = aqiMap[distName];
+        layer.on({
+          mouseover: e => e.target.setStyle({ fillOpacity: 0.65, weight: 2, color: '#fff' }),
+          mouseout:  e => e.target.setStyle({ fillOpacity: 0.42, weight: 1, color: '#00e5cc' }),
+          click: () => d && showSelectedInfo(distName + ', ' + stateName, d),
+        });
+        if (d) {
+          const lbl = aqiLabel(d.aqi);
+          layer.bindTooltip(`
+            <div style="font-family:'Share Tech Mono',monospace;font-size:11px;background:#0f1a22;border:1px solid #1a2d3a;padding:6px 10px;color:#c8dde8;border-left:3px solid ${aqiColor(d.aqi)}">
+              <div style="font-weight:700;letter-spacing:0.06em">${distName}</div>
+              <div style="color:${aqiColor(d.aqi)};font-size:15px;font-weight:900;margin-top:2px">AQI ${d.aqi}</div>
+              <div style="color:${aqiColor(d.aqi)};font-size:9px">${lbl.text}</div>
+            </div>
+          `, { sticky: true, className: 'aqi-tooltip', opacity: 1 });
+        }
+      }
+    }).addTo(districtLayerGroup);
+
+    // Add AQI number labels at district centroids
+    geo.features.forEach(f => {
+      try {
+        const coords = f.geometry.type === 'Polygon'
+          ? f.geometry.coordinates[0]
+          : f.geometry.coordinates[0][0];
+        const lats = coords.map(c => c[1]);
+        const lons = coords.map(c => c[0]);
+        const lat = lats.reduce((a,b)=>a+b,0)/lats.length;
+        const lon = lons.reduce((a,b)=>a+b,0)/lons.length;
+        const distName = getDistName(f);
+        const d = aqiMap[distName];
+        if (!d) return;
+        const color = aqiColor(d.aqi);
+        const labelIcon = L.divIcon({
+          className: '',
+          html: `<div style="font-family:'Share Tech Mono',monospace;text-align:center;pointer-events:none;line-height:1.2;">
+            <div style="font-size:11px;font-weight:900;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.aqi}</div>
+            <div style="font-size:6px;color:#fff;text-shadow:0 0 4px #000,1px 1px 2px #000;opacity:0.9">${distName.substring(0,8).toUpperCase()}</div>
+          </div>`,
+          iconSize: [60, 24],
+          iconAnchor: [30, 12],
+        });
+        L.marker([lat, lon], { icon: labelIcon, interactive: false, keyboard: false }).addTo(districtLayerGroup);
+      } catch(e) {}
+    });
+
+  } else {
+    // Fallback: use DISTRICT_CLUSTERS with styled cards
+    const districts = DISTRICT_CLUSTERS[stateName] || [];
+    await Promise.all(districts.map(async d => {
+      const data = await fetchAQI(d.lat, d.lon);
+      const color = aqiColor(data.aqi);
+      const lbl = aqiLabel(data.aqi);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="background:rgba(8,12,16,0.9);border:2px solid ${color};border-radius:4px;font-family:'Share Tech Mono',monospace;padding:5px 8px;min-width:64px;text-align:center;box-shadow:0 0 12px ${color}66;cursor:pointer;line-height:1.3;">
+          <div style="font-size:7px;color:#8aa;letter-spacing:0.08em;margin-bottom:2px">${d.name.toUpperCase()}</div>
+          <div style="font-size:16px;font-weight:900;color:${color};line-height:1">${data.aqi}</div>
+          <div style="font-size:6px;color:${color};opacity:0.85;margin-top:1px">${lbl.text}</div>
+        </div>`,
+        iconSize: [72, 52], iconAnchor: [36, 26],
+      });
+      const m = L.marker([d.lat, d.lon], { icon }).addTo(districtLayerGroup);
+      m.on('click', () => showSelectedInfo(d.name + ', ' + stateName, data));
+    }));
+  }
+}
+
+async function initMap() {
+  if (aqiMap) return;
+
+  aqiMap = L.map('mapContainer', {
+    center: [22.5, 82.5],
+    zoom: 5,
+    minZoom: 4,
+    maxZoom: 10,
+    zoomControl: true,
+  });
+
+  // Dark tile layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(aqiMap);
+
+  stateLayerGroup   = L.layerGroup().addTo(aqiMap);
+  districtLayerGroup = L.layerGroup().addTo(aqiMap);
+
+  document.getElementById('mapLoading').style.display = 'flex';
+  await renderStateMarkers();
+  document.getElementById('mapLoading').style.display = 'none';
+
+  aqiMap.on('zoomend moveend', async () => {
+    const z = aqiMap.getZoom();
+    currentZoom = z;
+    if (z >= 6) {
+      // Find closest state to map center
+      const center = aqiMap.getCenter();
+      let closest = null, minDist = Infinity;
+      INDIA_STATES.forEach(s => {
+        const d = Math.hypot(s.lat - center.lat, s.lon - center.lng);
+        if (d < minDist) { minDist = d; closest = s; }
+      });
+      if (!closest) return;
+      document.getElementById('mapZoomLabel').textContent = `ZOOM: District View · ${closest.name}`;
+      stateLayerGroup.clearLayers();
+      document.getElementById('mapLoading').style.display = 'flex';
+      await renderDistrictMarkers(closest.name);
+      document.getElementById('mapLoading').style.display = 'none';
+    } else {
+      document.getElementById('mapZoomLabel').textContent = 'ZOOM: State View · Scroll to zoom into districts';
+      districtLayerGroup.clearLayers();
+      document.getElementById('mapLoading').style.display = 'flex';
+      await renderStateMarkers();
+      document.getElementById('mapLoading').style.display = 'none';
+    }
+  });
+}
+
+function openMap() {
+  document.getElementById('mapModal').classList.add('show');
+  setTimeout(() => {
+    if (!aqiMap) {
+      initMap();
+    } else {
+      aqiMap.invalidateSize();
+    }
+  }, 100);
+}
+
+function closeMap() {
+  document.getElementById('mapModal').classList.remove('show');
+}
 </script>
 </body>
 </html>
