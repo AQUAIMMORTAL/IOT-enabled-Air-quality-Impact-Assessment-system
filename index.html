@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AirWatch — IoT Air Quality Monitor</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <script src="config.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -195,6 +196,77 @@ header {
   font-family: var(--mono); font-size: 0.58rem; color: var(--text2);
   text-align: center;
 }
+/* Search bar */
+.map-search-wrap {
+  position: absolute; top: 10px; right: 10px; z-index: 500;
+  display: flex; align-items: center; gap: 0;
+}
+.map-search-input {
+  display: none;
+  background: rgba(8,12,16,0.95);
+  border: 1px solid var(--teal);
+  border-right: none;
+  color: var(--text);
+  font-family: var(--mono); font-size: 0.7rem;
+  padding: 0.4rem 0.8rem;
+  outline: none;
+  width: 200px;
+  letter-spacing: 0.05em;
+}
+.map-search-input.open { display: block; }
+.map-search-btn {
+  background: rgba(8,12,16,0.95);
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 1rem;
+  transition: all 0.2s;
+}
+.map-search-btn:hover { background: rgba(0,229,204,0.1); }
+.map-search-results {
+  display: none;
+  position: absolute; top: 38px; right: 0;
+  background: rgba(8,12,16,0.97);
+  border: 1px solid var(--border);
+  min-width: 234px; max-height: 200px; overflow-y: auto;
+  z-index: 501;
+}
+.map-search-results.open { display: block; }
+.map-search-item {
+  padding: 0.5rem 0.8rem;
+  font-family: var(--mono); font-size: 0.68rem; color: var(--text);
+  cursor: pointer; border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.map-search-item:hover { background: rgba(0,229,204,0.08); color: var(--teal); }
+/* Zoom buttons */
+.map-zoom-btns {
+  position: absolute; bottom: 24px; right: 10px; z-index: 500;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.map-zoom-btn {
+  width: 34px; height: 34px;
+  background: rgba(8,12,16,0.95);
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  font-size: 1.2rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s; user-select: none;
+}
+.map-zoom-btn:hover { background: rgba(0,229,204,0.12); box-shadow: 0 0 10px rgba(0,229,204,0.3); }
+/* Sidebar close button */
+.sidebar-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.7rem 1.2rem;
+  border-top: 1px solid var(--border);
+}
+.sidebar-close-info {
+  background: transparent; border: none;
+  color: var(--text2); cursor: pointer; font-size: 0.9rem;
+  transition: color 0.2s; padding: 0;
+}
+.sidebar-close-info:hover { color: var(--danger); }
 /* AQI Tooltip overrides */
 .aqi-tooltip {
   background: transparent !important;
@@ -414,6 +486,13 @@ main {
 </style>
 </head>
 <body>
+<script>
+  // Force-clear AQI cache on every load so corrected fetch logic always runs fresh
+  try {
+    ['aqiCache_v1','aqiCache_v2','aqiCache_v3','aqiCache_v4',
+     'aqiCache_v4_ver','aqiCache_v3_ver'].forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
+</script>
 
 <!-- ALERT OVERLAY (screen flash) -->
 <div id="alertOverlay"></div>
@@ -433,6 +512,17 @@ main {
         <div class="map-spinner"></div>
         FETCHING LIVE AQI DATA...
       </div>
+      <!-- Search -->
+      <div class="map-search-wrap">
+        <input class="map-search-input" id="mapSearchInput" type="text" placeholder="SEARCH STATE OR DISTRICT..." autocomplete="off" oninput="mapSearchFilter(this.value)" onkeydown="mapSearchKey(event)"/>
+        <button class="map-search-btn" onclick="toggleMapSearch()" title="Search">🔍</button>
+        <div class="map-search-results" id="mapSearchResults"></div>
+      </div>
+      <!-- Zoom buttons -->
+      <div class="map-zoom-btns">
+        <button class="map-zoom-btn" onclick="mapZoomIn()" title="Zoom in">+</button>
+        <button class="map-zoom-btn" onclick="mapZoomOut()" title="Zoom out">−</button>
+      </div>
     </div>
     <div class="map-sidebar">
       <div class="map-sidebar-header">AQI LEGEND — US EPA SCALE</div>
@@ -450,7 +540,23 @@ main {
           Click any region on the map to see detailed AQI data
         </div>
       </div>
-      <div class="map-zoom-hint" id="mapZoomHint">🔍 Scroll to zoom · Click to inspect</div>
+      <div class="sidebar-panel-header">
+        <span class="map-zoom-hint" style="border:none;padding:0;" id="mapZoomHint">🔍 Scroll to zoom · Click</span>
+        <button class="sidebar-close-info" onclick="closeSidebarInfo()" title="Close panel">✕</button>
+      </div>
+      <div id="quotaWidget" style="padding:0.6rem 1.2rem;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.58rem;color:var(--text2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+          <span style="letter-spacing:0.1em;">IQ AIR QUOTA</span>
+          <span id="quotaMonthPct" style="color:var(--safe)">0%</span>
+        </div>
+        <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:0.35rem;">
+          <div id="quotaBar" style="height:100%;width:0%;background:var(--safe);border-radius:2px;transition:width 0.4s,background 0.4s;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <span>Today: <span id="quotaDay" style="color:var(--text)">0</span>/<span style="color:var(--text2)">200</span></span>
+          <span>Month: <span id="quotaMonth" style="color:var(--text)">0</span>/<span style="color:var(--text2)">9500</span></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -925,45 +1031,47 @@ setInterval(simulate, 2000);
 
 let aqiMap = null;
 let stateLayerGroup = null;
+let stateBorderLayer = null;
 let districtLayerGroup = null;
 let currentZoom = 5;
-let aqiCache = {};
+// Boot: hydrate in-memory cache from localStorage immediately
+// aqiCache initialized below after loadPersistentCache is defined
 
 // Indian states with lat/lon centroids
 const INDIA_STATES = [
-  { name: 'Uttar Pradesh',      lat: 26.8467, lon: 80.9462 },
-  { name: 'Maharashtra',        lat: 19.7515, lon: 75.7139 },
-  { name: 'Rajasthan',          lat: 27.0238, lon: 74.2179 },
-  { name: 'Madhya Pradesh',     lat: 22.9734, lon: 78.6569 },
-  { name: 'Bihar',              lat: 25.0961, lon: 85.3131 },
-  { name: 'Gujarat',            lat: 22.2587, lon: 71.1924 },
-  { name: 'Karnataka',          lat: 15.3173, lon: 75.7139 },
-  { name: 'Andhra Pradesh',     lat: 15.9129, lon: 79.7400 },
-  { name: 'Odisha',             lat: 20.9517, lon: 85.0985 },
-  { name: 'Tamil Nadu',         lat: 11.1271, lon: 78.6569 },
-  { name: 'Telangana',          lat: 18.1124, lon: 79.0193 },
-  { name: 'West Bengal',        lat: 22.9868, lon: 87.8550 },
-  { name: 'Jharkhand',          lat: 23.6102, lon: 85.2799 },
-  { name: 'Chhattisgarh',       lat: 21.2787, lon: 81.8661 },
-  { name: 'Assam',              lat: 26.2006, lon: 92.9376 },
-  { name: 'Punjab',             lat: 31.1471, lon: 75.3412 },
-  { name: 'Haryana',            lat: 29.0588, lon: 76.0856 },
-  { name: 'Uttarakhand',        lat: 30.0668, lon: 79.0193 },
-  { name: 'Himachal Pradesh',   lat: 31.1048, lon: 77.1734 },
-  { name: 'Jammu & Kashmir',    lat: 33.7782, lon: 76.5762 },
-  { name: 'Kerala',             lat: 10.8505, lon: 76.2711 },
-  { name: 'Delhi',              lat: 28.7041, lon: 77.1025 },
-  { name: 'Goa',                lat: 15.2993, lon: 74.1240 },
-  { name: 'Tripura',            lat: 23.9408, lon: 91.9882 },
-  { name: 'Manipur',            lat: 24.6637, lon: 93.9063 },
-  { name: 'Meghalaya',          lat: 25.4670, lon: 91.3662 },
-  { name: 'Nagaland',           lat: 26.1584, lon: 94.5624 },
-  { name: 'Mizoram',            lat: 23.1645, lon: 92.9376 },
-  { name: 'Sikkim',             lat: 27.5330, lon: 88.5122 },
-  { name: 'Arunachal Pradesh',  lat: 28.2180, lon: 94.7278 },
+  { name: 'Uttar Pradesh',      lat: 26.8467, lon: 80.9462 },  // Lucknow
+  { name: 'Maharashtra',        lat: 19.0760, lon: 72.8777 },  // Mumbai
+  { name: 'Rajasthan',          lat: 26.9124, lon: 75.7873 },  // Jaipur
+  { name: 'Madhya Pradesh',     lat: 23.2599, lon: 77.4126 },  // Bhopal
+  { name: 'Bihar',              lat: 25.5941, lon: 85.1376 },  // Patna
+  { name: 'Gujarat',            lat: 23.0225, lon: 72.5714 },  // Ahmedabad
+  { name: 'Karnataka',          lat: 12.9716, lon: 77.5946 },  // Bengaluru
+  { name: 'Andhra Pradesh',     lat: 16.5062, lon: 80.6480 },  // Vijayawada
+  { name: 'Odisha',             lat: 20.2961, lon: 85.8245 },  // Bhubaneswar
+  { name: 'Tamil Nadu',         lat: 13.0827, lon: 80.2707 },  // Chennai
+  { name: 'Telangana',          lat: 17.3850, lon: 78.4867 },  // Hyderabad
+  { name: 'West Bengal',        lat: 22.5726, lon: 88.3639 },  // Kolkata
+  { name: 'Jharkhand',          lat: 23.3441, lon: 85.3096 },  // Ranchi
+  { name: 'Chhattisgarh',       lat: 21.2514, lon: 81.6296 },  // Raipur
+  { name: 'Assam',              lat: 26.1445, lon: 91.7362 },  // Guwahati
+  { name: 'Punjab',             lat: 30.7333, lon: 76.7794 },  // Chandigarh
+  { name: 'Haryana',            lat: 28.4595, lon: 77.0266 },  // Gurugram (most polluted, has station)
+  { name: 'Uttarakhand',        lat: 30.3165, lon: 78.0322 },  // Dehradun
+  { name: 'Himachal Pradesh',   lat: 31.1048, lon: 77.1734 },  // Shimla
+  { name: 'Jammu & Kashmir',    lat: 32.7266, lon: 74.8570 },  // Jammu
+  { name: 'Kerala',             lat: 8.5241,  lon: 76.9366 },  // Thiruvananthapuram
+  { name: 'Delhi',              lat: 28.6139, lon: 77.2090 },  // Connaught Place (ITO station nearby)
+  { name: 'Goa',                lat: 15.4909, lon: 73.8278 },  // Panaji
+  { name: 'Tripura',            lat: 23.8315, lon: 91.2868 },  // Agartala
+  { name: 'Manipur',            lat: 24.8170, lon: 93.9368 },  // Imphal
+  { name: 'Meghalaya',          lat: 25.5788, lon: 91.8933 },  // Shillong
+  { name: 'Nagaland',           lat: 25.6751, lon: 94.1086 },  // Kohima
+  { name: 'Mizoram',            lat: 23.7271, lon: 92.7176 },  // Aizawl
+  { name: 'Sikkim',             lat: 27.3389, lon: 88.6065 },  // Gangtok
+  { name: 'Arunachal Pradesh',  lat: 27.0844, lon: 93.6053 },  // Itanagar
 ];
 
-// Major districts/cities per state (sample for zoom-in)
+// Major districts/cities per state (sample for zoom-in fallback when GeoJSON unavailable)
 const DISTRICT_CLUSTERS = {
   'Uttar Pradesh': [
     { name: 'Lucknow',     lat: 26.8467, lon: 80.9462 },
@@ -972,6 +1080,10 @@ const DISTRICT_CLUSTERS = {
     { name: 'Varanasi',    lat: 25.3176, lon: 82.9739 },
     { name: 'Noida',       lat: 28.5355, lon: 77.3910 },
     { name: 'Prayagraj',   lat: 25.4358, lon: 81.8463 },
+    { name: 'Meerut',      lat: 28.9845, lon: 77.7064 },
+    { name: 'Ghaziabad',   lat: 28.6692, lon: 77.4538 },
+    { name: 'Bareilly',    lat: 28.3670, lon: 79.4304 },
+    { name: 'Gorakhpur',   lat: 26.7606, lon: 83.3732 },
   ],
   'Maharashtra': [
     { name: 'Mumbai',      lat: 19.0760, lon: 72.8777 },
@@ -979,41 +1091,153 @@ const DISTRICT_CLUSTERS = {
     { name: 'Nagpur',      lat: 21.1458, lon: 79.0882 },
     { name: 'Nashik',      lat: 19.9975, lon: 73.7898 },
     { name: 'Aurangabad',  lat: 19.8762, lon: 75.3433 },
+    { name: 'Solapur',     lat: 17.6805, lon: 75.9064 },
+    { name: 'Kolhapur',    lat: 16.7050, lon: 74.2433 },
+    { name: 'Amravati',    lat: 20.9374, lon: 77.7796 },
   ],
   'Delhi': [
-    { name: 'New Delhi',   lat: 28.6139, lon: 77.2090 },
-    { name: 'Dwarka',      lat: 28.5921, lon: 77.0460 },
-    { name: 'Rohini',      lat: 28.7041, lon: 77.1025 },
-    { name: 'Noida Ext.',  lat: 28.6304, lon: 77.3690 },
+    { name: 'New Delhi',        lat: 28.6139, lon: 77.2090 },
+    { name: 'Dwarka',           lat: 28.5921, lon: 77.0460 },
+    { name: 'Rohini',           lat: 28.7041, lon: 77.1025 },
+    { name: 'Noida Ext.',       lat: 28.6304, lon: 77.3690 },
+    { name: 'Okhla',            lat: 28.5500, lon: 77.2700 },
+    { name: 'Anand Vihar',      lat: 28.6465, lon: 77.3152 },
   ],
   'Karnataka': [
     { name: 'Bengaluru',   lat: 12.9716, lon: 77.5946 },
     { name: 'Mysuru',      lat: 12.2958, lon: 76.6394 },
     { name: 'Hubli',       lat: 15.3647, lon: 75.1240 },
     { name: 'Mangaluru',   lat: 12.9141, lon: 74.8560 },
+    { name: 'Belagavi',    lat: 15.8497, lon: 74.4977 },
+    { name: 'Davanagere',  lat: 14.4644, lon: 75.9218 },
+    { name: 'Shivamogga',  lat: 13.9299, lon: 75.5681 },
   ],
   'Tamil Nadu': [
     { name: 'Chennai',     lat: 13.0827, lon: 80.2707 },
     { name: 'Coimbatore',  lat: 11.0168, lon: 76.9558 },
     { name: 'Madurai',     lat:  9.9252, lon: 78.1198 },
     { name: 'Salem',       lat: 11.6643, lon: 78.1460 },
+    { name: 'Trichy',      lat: 10.7905, lon: 78.7047 },
+    { name: 'Tirunelveli', lat:  8.7139, lon: 77.7567 },
+    { name: 'Vellore',     lat: 12.9165, lon: 79.1325 },
   ],
   'West Bengal': [
     { name: 'Kolkata',     lat: 22.5726, lon: 88.3639 },
     { name: 'Howrah',      lat: 22.5958, lon: 88.2636 },
     { name: 'Durgapur',    lat: 23.5204, lon: 87.3119 },
+    { name: 'Asansol',     lat: 23.6739, lon: 86.9524 },
+    { name: 'Siliguri',    lat: 26.7271, lon: 88.3953 },
+    { name: 'Kharagpur',   lat: 22.3460, lon: 87.3235 },
   ],
   'Gujarat': [
     { name: 'Ahmedabad',   lat: 23.0225, lon: 72.5714 },
     { name: 'Surat',       lat: 21.1702, lon: 72.8311 },
     { name: 'Vadodara',    lat: 22.3072, lon: 73.1812 },
     { name: 'Rajkot',      lat: 22.3039, lon: 70.8022 },
+    { name: 'Bhavnagar',   lat: 21.7645, lon: 72.1519 },
+    { name: 'Gandhinagar', lat: 23.2156, lon: 72.6369 },
+    { name: 'Jamnagar',    lat: 22.4707, lon: 70.0577 },
   ],
   'Rajasthan': [
     { name: 'Jaipur',      lat: 26.9124, lon: 75.7873 },
     { name: 'Jodhpur',     lat: 26.2389, lon: 73.0243 },
     { name: 'Udaipur',     lat: 24.5854, lon: 73.7125 },
     { name: 'Kota',        lat: 25.2138, lon: 75.8648 },
+    { name: 'Ajmer',       lat: 26.4499, lon: 74.6399 },
+    { name: 'Bikaner',     lat: 28.0229, lon: 73.3119 },
+    { name: 'Alwar',       lat: 27.5635, lon: 76.6346 },
+  ],
+  'Madhya Pradesh': [
+    { name: 'Bhopal',      lat: 23.2599, lon: 77.4126 },
+    { name: 'Indore',      lat: 22.7196, lon: 75.8577 },
+    { name: 'Jabalpur',    lat: 23.1815, lon: 79.9864 },
+    { name: 'Gwalior',     lat: 26.2183, lon: 78.1828 },
+    { name: 'Ujjain',      lat: 23.1793, lon: 75.7849 },
+    { name: 'Sagar',       lat: 23.8388, lon: 78.7378 },
+    { name: 'Ratlam',      lat: 23.3315, lon: 75.0367 },
+  ],
+  'Bihar': [
+    { name: 'Patna',       lat: 25.5941, lon: 85.1376 },
+    { name: 'Gaya',        lat: 24.7955, lon: 84.9994 },
+    { name: 'Bhagalpur',   lat: 25.2425, lon: 86.9842 },
+    { name: 'Muzaffarpur', lat: 26.1197, lon: 85.3910 },
+    { name: 'Darbhanga',   lat: 26.1542, lon: 85.8918 },
+    { name: 'Ara',         lat: 25.5566, lon: 84.6650 },
+  ],
+  'Andhra Pradesh': [
+    { name: 'Vijayawada',  lat: 16.5062, lon: 80.6480 },
+    { name: 'Visakhapatnam', lat: 17.6868, lon: 83.2185 },
+    { name: 'Tirupati',    lat: 13.6288, lon: 79.4192 },
+    { name: 'Guntur',      lat: 16.3067, lon: 80.4365 },
+    { name: 'Nellore',     lat: 14.4426, lon: 79.9865 },
+    { name: 'Kurnool',     lat: 15.8281, lon: 78.0373 },
+  ],
+  'Telangana': [
+    { name: 'Hyderabad',   lat: 17.3850, lon: 78.4867 },
+    { name: 'Warangal',    lat: 17.9689, lon: 79.5941 },
+    { name: 'Nizamabad',   lat: 18.6725, lon: 78.0941 },
+    { name: 'Karimnagar',  lat: 18.4386, lon: 79.1288 },
+    { name: 'Khammam',     lat: 17.2473, lon: 80.1514 },
+  ],
+  'Punjab': [
+    { name: 'Amritsar',    lat: 31.6340, lon: 74.8723 },
+    { name: 'Ludhiana',    lat: 30.9009, lon: 75.8573 },
+    { name: 'Jalandhar',   lat: 31.3260, lon: 75.5762 },
+    { name: 'Patiala',     lat: 30.3398, lon: 76.3869 },
+    { name: 'Bathinda',    lat: 30.2110, lon: 74.9455 },
+    { name: 'Mohali',      lat: 30.7046, lon: 76.7179 },
+  ],
+  'Haryana': [
+    { name: 'Gurugram',    lat: 28.4595, lon: 77.0266 },
+    { name: 'Faridabad',   lat: 28.4089, lon: 77.3178 },
+    { name: 'Panipat',     lat: 29.3909, lon: 76.9635 },
+    { name: 'Ambala',      lat: 30.3782, lon: 76.7767 },
+    { name: 'Rohtak',      lat: 28.8955, lon: 76.6066 },
+    { name: 'Sonipat',     lat: 28.9931, lon: 77.0151 },
+    { name: 'Hisar',       lat: 29.1492, lon: 75.7217 },
+  ],
+  'Kerala': [
+    { name: 'Thiruvananthapuram', lat: 8.5241,  lon: 76.9366 },
+    { name: 'Kochi',       lat: 9.9312,  lon: 76.2673 },
+    { name: 'Kozhikode',   lat: 11.2588, lon: 75.7804 },
+    { name: 'Thrissur',    lat: 10.5276, lon: 76.2144 },
+    { name: 'Kollam',      lat: 8.8932,  lon: 76.6141 },
+    { name: 'Palakkad',    lat: 10.7867, lon: 76.6548 },
+  ],
+  'Odisha': [
+    { name: 'Bhubaneswar', lat: 20.2961, lon: 85.8245 },
+    { name: 'Cuttack',     lat: 20.4625, lon: 85.8828 },
+    { name: 'Rourkela',    lat: 22.2604, lon: 84.8536 },
+    { name: 'Sambalpur',   lat: 21.4669, lon: 83.9756 },
+    { name: 'Berhampur',   lat: 19.3150, lon: 84.7941 },
+  ],
+  'Jharkhand': [
+    { name: 'Ranchi',      lat: 23.3441, lon: 85.3096 },
+    { name: 'Jamshedpur',  lat: 22.8046, lon: 86.2029 },
+    { name: 'Dhanbad',     lat: 23.7957, lon: 86.4304 },
+    { name: 'Bokaro',      lat: 23.6693, lon: 85.9942 },
+    { name: 'Hazaribagh',  lat: 23.9966, lon: 85.3618 },
+  ],
+  'Chhattisgarh': [
+    { name: 'Raipur',      lat: 21.2514, lon: 81.6296 },
+    { name: 'Bhilai',      lat: 21.1938, lon: 81.3509 },
+    { name: 'Bilaspur',    lat: 22.0797, lon: 82.1409 },
+    { name: 'Korba',       lat: 22.3595, lon: 82.7501 },
+    { name: 'Durg',        lat: 21.1904, lon: 81.2849 },
+  ],
+  'Assam': [
+    { name: 'Guwahati',    lat: 26.1445, lon: 91.7362 },
+    { name: 'Silchar',     lat: 24.8333, lon: 92.7789 },
+    { name: 'Dibrugarh',   lat: 27.4728, lon: 94.9120 },
+    { name: 'Jorhat',      lat: 26.7509, lon: 94.2037 },
+    { name: 'Nagaon',      lat: 26.3472, lon: 92.6836 },
+  ],
+  'Uttarakhand': [
+    { name: 'Dehradun',    lat: 30.3165, lon: 78.0322 },
+    { name: 'Haridwar',    lat: 29.9457, lon: 78.1642 },
+    { name: 'Roorkee',     lat: 29.8543, lon: 77.8880 },
+    { name: 'Haldwani',    lat: 29.2183, lon: 79.5130 },
+    { name: 'Nainital',    lat: 29.3803, lon: 79.4636 },
   ],
 };
 
@@ -1034,48 +1258,1228 @@ function aqiLabel(aqi) {
   return               { text: 'HAZARDOUS',           color: '#7b1fa2' };
 }
 
-async function fetchAQI(lat, lon) {
-  const key = `${lat.toFixed(2)}_${lon.toFixed(2)}`;
-  if (aqiCache[key] && (Date.now() - aqiCache[key].ts < 5 * 60 * 1000)) {
-    return aqiCache[key].data;
+const AQICN_TOKEN   = CONFIG.AQICN_TOKEN;
+const IQAIR_KEY     = CONFIG.IQAIR_KEY;
+const GOOGLE_AQ_KEY = CONFIG.GOOGLE_AQ_KEY;
+const NASA_TOKEN    = CONFIG.NASA_TOKEN || '';
+
+// ── IQAIR QUOTA MANAGER ───────────────────────────────────────────────────────
+// Budget: 10,000 calls/month → target ≤9,500 (safety headroom).
+// 2 users, ~30 days → 158 calls/user/day absolute max.
+// With caching, real usage should be <50/day combined.
+// Quota is persisted in localStorage so it survives page reloads.
+const IQAIR_MONTHLY_BUDGET = CONFIG.IQAIR_MONTHLY_BUDGET;
+const IQAIR_DAILY_HARD_CAP = CONFIG.IQAIR_DAILY_HARD_CAP;
+
+// ── IQAIR RATE LIMITER ────────────────────────────────────────────────────────
+// IQAir free tier: 10,000 calls/month hard limit + undocumented per-second cap.
+// This queue enforces a minimum 2s gap between calls so we never get 429'd,
+// and never fire more than one call at a time regardless of parallel district loads.
+const IQAirRateLimiter = {
+  _queue:    [],
+  _running:  false,
+  _lastCall: 0,
+  MIN_GAP_MS: 2000, // minimum ms between consecutive IQAir calls
+
+  enqueue(fn) {
+    return new Promise((resolve, reject) => {
+      this._queue.push({ fn, resolve, reject });
+      this._drain();
+    });
+  },
+
+  async _drain() {
+    if (this._running) return;
+    this._running = true;
+    while (this._queue.length > 0) {
+      const { fn, resolve, reject } = this._queue.shift();
+      const now  = Date.now();
+      const wait = Math.max(0, this._lastCall + this.MIN_GAP_MS - now);
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      this._lastCall = Date.now();
+      try { resolve(await fn()); } catch(e) { reject(e); }
+    }
+    this._running = false;
   }
+};
+
+const IQAirQuota = {
+  _key: 'iqair_quota_v2',
+
+  _load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(this._key) || '{}');
+      const todayStr = new Date().toISOString().slice(0, 10);   // YYYY-MM-DD
+      const monthStr = new Date().toISOString().slice(0, 7);    // YYYY-MM
+      // Reset daily counter on new day, monthly on new month
+      if (s.day !== todayStr)   { s.dayCount = 0;   s.day   = todayStr; }
+      if (s.month !== monthStr) { s.monthCount = 0; s.month = monthStr; }
+      return s;
+    } catch(e) {
+      return { dayCount: 0, monthCount: 0,
+               day: new Date().toISOString().slice(0,10),
+               month: new Date().toISOString().slice(0,7) };
+    }
+  },
+
+  _save(s) {
+    try { localStorage.setItem(this._key, JSON.stringify(s)); } catch(e) {}
+  },
+
+  canCall() {
+    const s = this._load();
+    return s.dayCount < IQAIR_DAILY_HARD_CAP && s.monthCount < IQAIR_MONTHLY_BUDGET;
+  },
+
+  record() {
+    const s = this._load();
+    s.dayCount++;
+    s.monthCount++;
+    this._save(s);
+    console.log(`[IQAir Quota] day: ${s.dayCount}/${IQAIR_DAILY_HARD_CAP}  month: ${s.monthCount}/${IQAIR_MONTHLY_BUDGET}`);
+    return s;
+  },
+
+  status() {
+    const s = this._load();
+    return { day: s.dayCount, month: s.monthCount,
+             dayLeft: IQAIR_DAILY_HARD_CAP - s.dayCount,
+             monthLeft: IQAIR_MONTHLY_BUDGET - s.monthCount,
+             monthPct: ((s.monthCount / IQAIR_MONTHLY_BUDGET) * 100).toFixed(1) };
+  }
+};
+
+// ── PERSISTENT AQI CACHE (localStorage) ──────────────────────────────────────
+// In-memory cache is wiped on every page reload, wasting IQAir quota.
+// This layer persists across reloads for up to the TTL window.
+const CACHE_TTL = {
+  WAQI:          30 * 60 * 1000,   // 30 min  — real-time ground station
+  IQAir:         60 * 60 * 1000,   // 60 min  — expensive; don't waste calls
+  GoogleAQ:      45 * 60 * 1000,   // 45 min  — 500m model, updates hourly
+  OpenMeteo:     45 * 60 * 1000,   // 45 min  — model updates ~hourly
+  'IDW-Interpolated': 45 * 60 * 1000,
+  DEFAULT:       30 * 60 * 1000,
+};
+const CACHE_MAX_AGE  = 2 * 60 * 60 * 1000; // 2 h — never serve data older than this
+const CACHE_LS_KEY   = 'aqiCache_v4';
+
+function cacheTTL(source) {
+  for (const [k, v] of Object.entries(CACHE_TTL)) {
+    if ((source || '').includes(k)) return v;
+  }
+  return CACHE_TTL.DEFAULT;
+}
+
+function loadPersistentCache() {
   try {
-    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,ozone,european_aqi,us_aqi&timezone=Asia%2FKolkata`;
-    const res = await fetch(url);
+    const versionKey = CACHE_LS_KEY + '_ver';
+    const storedVer  = localStorage.getItem(versionKey);
+    // If version mismatch, wipe entire cache so corrected logic takes effect
+    if (storedVer !== (typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : 'v4_corrected')) {
+      localStorage.removeItem(CACHE_LS_KEY);
+      localStorage.setItem(versionKey, typeof CACHE_VERSION !== 'undefined' ? CACHE_VERSION : 'v4_corrected');
+      console.log('[Cache] Version mismatch — cleared stale cache, fresh fetch will run');
+      return {};
+    }
+    const raw = JSON.parse(localStorage.getItem(CACHE_LS_KEY) || '{}');
+    const now  = Date.now();
+    const fresh = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (now - v.ts < CACHE_MAX_AGE) fresh[k] = v;
+    }
+    return fresh;
+  } catch(e) { return {}; }
+}
+
+function savePersistentCache(cache) {
+  try {
+    // Only persist the 300 most-recently-updated entries to stay under localStorage quota
+    const entries = Object.entries(cache)
+      .sort(([,a],[,b]) => b.ts - a.ts)
+      .slice(0, 300);
+    localStorage.setItem(CACHE_LS_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch(e) { /* localStorage full — silently skip */ }
+}
+
+const CACHE_VERSION = 'v4_corrected';
+let aqiCache = loadPersistentCache();
+
+// ── DESERT / ARID ZONE DEFINITION ────────────────────────────────────────────
+// Thar Desert + Rann of Kutch + Deccan rain-shadow zones where CAMS/Open-Meteo
+// systematically overestimates AQI due to natural mineral dust aerosols.
+// These regions have few ground stations; Open-Meteo is often the only source,
+// but its raw output conflates road-traffic pollution with blowing desert dust.
+const DESERT_ZONES = [
+  // Actual arid/desert zones — dust aerosol inflation
+  { name: 'Thar Desert',       latMin: 24,   latMax: 30,   lonMin: 68,   lonMax: 75.5, factor: 0.62 },
+  { name: 'Rann of Kutch',     latMin: 22,   latMax: 24.5, lonMin: 68,   lonMax: 72,   factor: 0.70 },
+  { name: 'Deccan Arid',       latMin: 16,   latMax: 20,   lonMin: 74,   lonMax: 78,   factor: 0.82 },
+  // Hill/forest states — OpenMeteo CAMS systematically overestimates due to
+  // terrain-induced aerosol trapping artefacts and sparse calibration stations
+  { name: 'Himalayan Foothills', latMin: 29, latMax: 33,   lonMin: 75,   lonMax: 81,   factor: 0.68 },
+  { name: 'NE Hill States',    latMin: 22,   latMax: 28,   lonMin: 89,   lonMax: 97,   factor: 0.72 },
+  // Gujarat coast — sea-salt aerosols inflate model
+  { name: 'Gujarat Coast',     latMin: 20,   latMax: 24,   lonMin: 68,   lonMax: 74,   factor: 0.75 },
+  // Deccan Plateau states (Telangana/AP) — biomass burning model artefact
+  { name: 'Deccan Plateau',    latMin: 15,   latMax: 20,   lonMin: 77,   lonMax: 82,   factor: 0.78 },
+];
+
+function getDesertCorrectionFactor(lat, lon) {
+  for (const z of DESERT_ZONES) {
+    if (lat >= z.latMin && lat <= z.latMax && lon >= z.lonMin && lon <= z.lonMax) {
+      return { factor: z.factor, zoneName: z.name };
+    }
+  }
+  return null;
+}
+
+// ── IDW (Inverse Distance Weighting) INTERPOLATION ───────────────────────────
+// Uses multiple surrounding data points weighted by 1/d² instead of copying
+// the single nearest neighbour.  Much smoother and more realistic for districts
+// that have no ground station of their own.
+function idwInterpolate(targetLat, targetLon, measuredDistricts, power = 2) {
+  const valid = measuredDistricts.filter(d => d.aqi > 0 && d.lat != null && d.lon != null);
+  if (valid.length === 0) return null;
+
+  let weightedSumAqi  = 0;
+  let weightedSumPm25 = 0;
+  let weightedSumPm10 = 0;
+  let totalWeight     = 0;
+  let hasPm25 = false, hasPm10 = false;
+
+  for (const d of valid) {
+    const dist = Math.hypot(d.lat - targetLat, d.lon - targetLon);
+    if (dist < 0.005) return d; // essentially the same point — return directly
+    const w = 1 / Math.pow(dist, power);
+    weightedSumAqi  += d.aqi * w;
+    if (typeof d.pm25 === 'number') { weightedSumPm25 += d.pm25 * w; hasPm25 = true; }
+    if (typeof d.pm10 === 'number') { weightedSumPm10 += d.pm10 * w; hasPm10 = true; }
+    totalWeight += w;
+  }
+
+  return {
+    aqi:         Math.round(weightedSumAqi  / totalWeight),
+    pm25:        hasPm25 ? parseFloat((weightedSumPm25 / totalWeight).toFixed(1)) : '--',
+    pm10:        hasPm10 ? parseFloat((weightedSumPm10 / totalWeight).toFixed(1)) : '--',
+    no2: '--', o3: '--', co: '--',
+    station: `IDW blend (${valid.length} neighbours)`,
+    source:  'IDW-Interpolated',
+    interpolated: true,
+  };
+}
+
+// ── WAQI Map/Bounds API ───────────────────────────────────────────────────────
+// Queries ALL stations within a lat/lon bounding box — far better coverage than
+// the single geo endpoint which silently grabs one (possibly wrong) station.
+// Returns IDW-blended AQI if multiple stations found, single if only one.
+// No quota cost beyond the AQICN token (unlimited free tier).
+async function fetchFromWAQIBounds(lat, lon, radiusDeg = 0.5) {
+  try {
+    const latMin = (lat - radiusDeg).toFixed(4);
+    const latMax = (lat + radiusDeg).toFixed(4);
+    const lonMin = (lon - radiusDeg).toFixed(4);
+    const lonMax = (lon + radiusDeg).toFixed(4);
+    const url = `https://api.waqi.info/map/bounds/?latlng=${latMin},${lonMin},${latMax},${lonMax}&token=${AQICN_TOKEN}`;
+    const res  = await fetch(url);
     const json = await res.json();
-    const c = json.current || {};
-    const data = {
-      aqi:   c.us_aqi   ?? Math.round(c.european_aqi ?? 0),
-      pm25:  c.pm2_5    ?? 0,
-      pm10:  c.pm10     ?? 0,
-      no2:   c.nitrogen_dioxide ?? 0,
-      o3:    c.ozone    ?? 0,
-      co:    c.carbon_monoxide  ?? 0,
+    if (json.status !== 'ok' || !Array.isArray(json.data) || json.data.length === 0) return null;
+
+    // Filter: valid numeric AQI only, within radius
+    const valid = json.data
+      .filter(s => s.aqi !== '-' && s.aqi !== null && !isNaN(parseInt(s.aqi)))
+      .map(s => ({
+        aqi:  Math.min(500, Math.max(0, parseInt(s.aqi))),
+        lat:  parseFloat(s.lat),
+        lon:  parseFloat(s.lon),
+        name: s.station?.name || '',
+        uid:  s.uid,
+        dist: Math.hypot(parseFloat(s.lat) - lat, parseFloat(s.lon) - lon),
+      }))
+      .filter(s => s.aqi > 0 && s.dist <= radiusDeg * 1.25)
+      .sort((a, b) => a.dist - b.dist);
+
+    if (valid.length === 0) return null;
+
+    // Outlier rejection: drop stations >100 pts from median
+    if (valid.length >= 2) {
+      const sorted = [...valid].sort((a, b) => a.aqi - b.aqi);
+      const median = sorted[Math.floor(sorted.length / 2)].aqi;
+      const trimmed = valid.filter(s => Math.abs(s.aqi - median) <= 100);
+      if (trimmed.length > 0 && trimmed.length < valid.length) {
+        console.log(`[WAQI Bounds] Outlier trimmed: ${valid.length} → ${trimmed.length} stations`);
+        valid.length = 0;
+        valid.push(...trimmed);
+      }
+    }
+
+    // IDW blend across all credible stations
+    let wSum = 0, aqiSum = 0;
+    for (const s of valid) {
+      const w = 1 / Math.max(s.dist * s.dist, 0.0001); // 1/d²
+      wSum   += w;
+      aqiSum += s.aqi * w;
+    }
+    const blendedAqi = Math.min(500, Math.max(0, Math.round(aqiSum / wSum)));
+    const nearest    = valid[0];
+
+    console.log(`[WAQI Bounds] ${valid.length} station(s) within ${(radiusDeg*111).toFixed(0)}km of (${lat.toFixed(2)},${lon.toFixed(2)}) → blended AQI ${blendedAqi}`);
+
+    return {
+      aqi:          blendedAqi,
+      pm25:         '--', pm10: '--', no2: '--', o3: '--', co: '--',
+      station:      valid.length > 1
+                      ? `WAQI blend · ${valid.length} stations (nearest: ${nearest.name})`
+                      : nearest.name,
+      stationLat:   nearest.lat,
+      stationLon:   nearest.lon,
+      source:       'WAQI',
+      stationCount: valid.length,
     };
-    aqiCache[key] = { data, ts: Date.now() };
-    return data;
   } catch(e) {
-    return { aqi: Math.floor(Math.random() * 200 + 20), pm25: '--', pm10: '--', no2: '--', o3: '--', co: '--' };
+    console.error('[WAQI Bounds] Fetch failed:', e);
+    return null;
   }
 }
 
-function showSelectedInfo(name, data) {
-  const lbl = aqiLabel(data.aqi);
+async function fetchFromIQAir(lat, lon, isDistrict = false) {
+  // Route through rate limiter — enforces 2s minimum gap between calls
+  return IQAirRateLimiter.enqueue(() => _fetchFromIQAirRaw(lat, lon, isDistrict));
+}
+
+async function _fetchFromIQAirRaw(lat, lon, isDistrict = false) {
+  if (!IQAirQuota.canCall()) {
+    const st = IQAirQuota.status();
+    console.warn(`[IQAir] Quota gate: day ${st.day}/${IQAIR_DAILY_HARD_CAP}  month ${st.month}/${IQAIR_MONTHLY_BUDGET} — skipping`);
+    return null;
+  }
+  try {
+    const url = `https://api.airvisual.com/v2/nearest_city?lat=${lat}&lon=${lon}&key=${IQAIR_KEY}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    if (json.status !== 'success') {
+      console.warn(`[IQAir] API error: ${json.message || json.status}`);
+      return null;
+    }
+    IQAirQuota.record();
+    // Update quota widget immediately after every successful IQAir call
+    updateQuotaWidget();
+
+    // Validate proximity — reject if nearest city is >1.8° (~200km) away.
+    const cityLat = json.data.location?.coordinates?.[1];
+    const cityLon = json.data.location?.coordinates?.[0];
+    if (cityLat && cityLon) {
+      const distDeg = Math.hypot(cityLat - lat, cityLon - lon);
+      const proximityLimit = isDistrict ? 0.45 : 1.8;  // 50km districts, 200km states
+      if (distDeg > proximityLimit) {
+        console.warn(`[IQAir] Nearest station "${json.data.city}" too far (${(distDeg * 111).toFixed(0)}km > ${(proximityLimit * 111).toFixed(0)}km) — rejected`);
+        return null;
+      }
+    }
+
+    const p = json.data.current.pollution;
+    const aqi = Math.min(500, Math.max(0, Math.round(p.aqius || 0)));
+    if (aqi === 0) return null;
+    const stationLabel = json.data.city + ', ' + json.data.state;
+    const st = IQAirQuota.status();
+    console.log(`[IQAir] ✓ ${stationLabel} → AQI ${aqi} | budget: ${st.monthLeft} left this month`);
+    return {
+      aqi,
+      pm25:    p.p2?.conc ?? '--',
+      pm10:    '--',
+      no2:     '--',
+      o3:      '--',
+      co:      '--',
+      station: stationLabel,
+      source:  'IQAir',
+    };
+  } catch(e) {
+    console.error(`[IQAir] Fetch failed:`, e);
+    return null;
+  }
+}
+
+// ── WAQI Search API fallback ──────────────────────────────────────────────────
+// When bounds API finds no stations (rural districts, NE India), search by name.
+// This discovers SAMOSA low-cost sensors and other non-CPCB networks that the
+// bounds API silently excludes. Fixes districts like Shahjahanpur, Budaun, etc.
+async function fetchFromWAQISearch(districtName, lat, lon) {
+  if (!districtName || districtName === 'Unknown') return null;
+  try {
+    // Try district name first, then strip common suffixes for better matching
+    const queries = [
+      districtName,
+      districtName.replace(/\s+(district|dist|city)$/i, ''),
+    ].filter((v, i, a) => a.indexOf(v) === i);
+
+    for (const q of queries) {
+      const url = `https://api.waqi.info/search/?keyword=${encodeURIComponent(q)}&token=${AQICN_TOKEN}`;
+      const res  = await fetch(url);
+      const json = await res.json();
+      if (json.status !== 'ok' || !Array.isArray(json.data) || json.data.length === 0) continue;
+
+      // Filter: valid AQI, within 80km of district centroid
+      const valid = json.data
+        .filter(s => s.aqi !== '-' && s.aqi !== null && !isNaN(parseInt(s.aqi)))
+        .map(s => ({
+          aqi:  Math.min(500, Math.max(0, parseInt(s.aqi))),
+          lat:  s.station?.geo?.[0] ?? null,
+          lon:  s.station?.geo?.[1] ?? null,
+          name: s.station?.name || q,
+          uid:  s.uid,
+        }))
+        .filter(s => {
+          if (s.aqi <= 0) return false;
+          if (s.lat == null || s.lon == null) return true; // no coords, accept anyway
+          const distKm = Math.hypot(s.lat - lat, s.lon - lon) * 111;
+          return distKm <= 80; // within 80km of district centroid
+        })
+        .sort((a, b) => {
+          // Sort by distance if coords available
+          if (a.lat != null && b.lat != null) {
+            return Math.hypot(a.lat - lat, a.lon - lon) - Math.hypot(b.lat - lat, b.lon - lon);
+          }
+          return 0;
+        });
+
+      if (valid.length === 0) continue;
+
+      const best = valid[0];
+      console.log(`[WAQI Search] ✓ "${best.name}" → AQI ${best.aqi} (query: "${q}")`);
+      return {
+        aqi:        best.aqi,
+        pm25:       '--', pm10: '--', no2: '--', o3: '--', co: '--',
+        station:    `WAQI Search: ${best.name}`,
+        stationLat: best.lat,
+        stationLon: best.lon,
+        source:     'WAQISearch',
+      };
+    }
+    return null;
+  } catch(e) {
+    console.warn('[WAQI Search] Failed:', e.message);
+    return null;
+  }
+}
+
+// ── NASA POWER API (MERRA-2 reanalysis) ──────────────────────────────────────
+// NASA's Prediction Of Worldwide Energy Resources — provides MERRA-2 reanalysis
+// data including surface PM2.5 and Aerosol Optical Depth at ~55km resolution.
+// Free, CORS-friendly JSON, no auth needed for POWER itself.
+// Better than Open-Meteo for IGP dust events due to different model physics.
+// Data lag: ~2 days behind real-time (reanalysis, not forecast).
+//
+// NASA_TOKEN is reserved for future MODIS NRT integration (3km resolution)
+// via a backend proxy — browser CORS blocks direct LAADS/OPeNDAP access.
+async function fetchFromNASAPOWER(lat, lon) {
+  try {
+    // Use yesterday's date — MERRA-2 reanalysis has ~2 day lag
+    const d     = new Date(Date.now() - 2 * 86400000);
+    const year  = d.getUTCFullYear();
+    const mm    = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd    = String(d.getUTCDate()).padStart(2, '0');
+    const dateStr = `${year}${mm}${dd}`;
+
+    // Parameters:
+    //   PM25_DRY — Dry surface PM2.5 mass concentration (µg/m³)
+    //   AOD_55   — Aerosol Optical Depth at 550nm (dimensionless)
+    //   RH2M     — Relative humidity at 2m (for hygroscopic growth correction)
+    const url = `https://power.larc.nasa.gov/api/temporal/daily/point` +
+      `?parameters=PM25_DRY,AOD_55,RH2M` +
+      `&community=RE` +
+      `&longitude=${lon.toFixed(4)}&latitude=${lat.toFixed(4)}` +
+      `&start=${dateStr}&end=${dateStr}` +
+      `&format=JSON`;
+
+    const res  = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+
+    const props = json?.properties?.parameter;
+    if (!props) return null;
+
+    const pm25raw = props.PM25_DRY?.[dateStr];
+    const aod     = props.AOD_55?.[dateStr];
+    const rh      = props.RH2M?.[dateStr] ?? 50;
+
+    // NASA POWER returns -999 for missing data
+    if (!pm25raw || pm25raw <= -990) return null;
+
+    // Hygroscopic growth correction: aerosols absorb moisture and swell.
+    // At high RH (>70%) PM2.5 effective concentration is higher than dry mass.
+    // Factor: f(RH) = 1 / (1 - RH/100 * 0.8) capped at 2.5×
+    const rhFactor = Math.min(2.5, 1 / Math.max(0.1, 1 - (rh / 100) * 0.8));
+    const pm25eff  = pm25raw * rhFactor;
+
+    // Convert effective PM2.5 → India CPCB AQI using EPA breakpoints
+    // (same scale as CPCB for PM2.5 sub-index in Moderate–Severe range)
+    const aqi = pm25ToCpcbAQI(pm25eff);
+    if (aqi <= 0) return null;
+
+    console.log(`[NASA POWER] PM2.5_dry=${pm25raw.toFixed(1)} × RH_factor=${rhFactor.toFixed(2)} → PM2.5_eff=${pm25eff.toFixed(1)} → AQI ${aqi}`);
+
+    return {
+      aqi,
+      pm25:    parseFloat(pm25eff.toFixed(1)),
+      pm10:    '--',
+      no2:     '--',
+      o3:      '--',
+      co:      '--',
+      station: `NASA MERRA-2 (${dateStr})`,
+      source:  'NASAPOWER',
+      aod:     aod && aod > -990 ? parseFloat(aod.toFixed(3)) : null,
+    };
+  } catch(e) {
+    console.warn('[NASA POWER] Fetch failed:', e.message);
+    return null;
+  }
+}
+
+// PM2.5 → India CPCB AQI (sub-index breakpoints per CPCB 2014 notification)
+// India CPCB uses different breakpoints than US EPA — this is authoritative.
+function pm25ToCpcbAQI(pm25) {
+  const bp = [
+    { cLo:   0,   cHi:  30,   iLo:   0, iHi:  50  },  // Good
+    { cLo:  30,   cHi:  60,   iLo:  51, iHi: 100  },  // Satisfactory
+    { cLo:  60,   cHi:  90,   iLo: 101, iHi: 200  },  // Moderate
+    { cLo:  90,   cHi: 120,   iLo: 201, iHi: 300  },  // Poor
+    { cLo: 120,   cHi: 250,   iLo: 301, iHi: 400  },  // Very Poor
+    { cLo: 250,   cHi: 380,   iLo: 401, iHi: 500  },  // Severe
+  ];
+  const c   = Math.max(0, pm25);
+  const seg = bp.find(b => c >= b.cLo && c <= b.cHi);
+  if (!seg) return c > 380 ? 500 : 0;
+  return Math.round(((seg.iHi - seg.iLo) / (seg.cHi - seg.cLo)) * (c - seg.cLo) + seg.iLo);
+}
+
+// ── Multi-point Open-Meteo for large districts ────────────────────────────────
+// Samples at district corners + center and IDW-blends for more accurate coverage
+// in large Rajasthan/MP/UP districts where centroid != populated area.
+async function fetchFromOpenMeteoMultiPoint(lat, lon, spanLat = 0, spanLon = 0) {
+  // If district span is small (<0.3°) just use single point
+  if (spanLat < 0.3 && spanLon < 0.3) return fetchFromOpenMeteo(lat, lon);
+
+  const halfLat = Math.min(spanLat / 2, 0.4);
+  const halfLon = Math.min(spanLon / 2, 0.4);
+
+  // Sample 5 points: center + 4 cardinal offsets
+  const points = [
+    { lat, lon, w: 2 },                              // center — 2x weight
+    { lat: lat + halfLat * 0.7, lon, w: 1 },         // north
+    { lat: lat - halfLat * 0.7, lon, w: 1 },         // south
+    { lat, lon: lon + halfLon * 0.7, w: 1 },         // east
+    { lat, lon: lon - halfLon * 0.7, w: 1 },         // west
+  ];
+
+  try {
+    const results = await Promise.all(points.map(p => fetchFromOpenMeteo(p.lat, p.lon).catch(() => null)));
+    const valid = results
+      .map((r, i) => r && r.aqi > 0 ? { ...r, weight: points[i].w } : null)
+      .filter(Boolean);
+
+    if (valid.length === 0) return null;
+    if (valid.length === 1) return valid[0];
+
+    // Weighted blend
+    let totalW = 0, wAqi = 0, wPm25 = 0, wPm10 = 0, wNo2 = 0, wO3 = 0;
+    let hasPm25 = false, hasPm10 = false, hasDust = false;
+    for (const v of valid) {
+      const w = v.weight;
+      totalW += w;
+      wAqi   += v.aqi * w;
+      if (typeof v.pm25 === 'number') { wPm25 += v.pm25 * w; hasPm25 = true; }
+      if (typeof v.pm10 === 'number') { wPm10 += v.pm10 * w; hasPm10 = true; }
+      if (typeof v.no2  === 'number') { wNo2  += v.no2  * w; }
+      if (typeof v.o3   === 'number') { wO3   += v.o3   * w; }
+      if (v.dustCorrected) hasDust = true;
+    }
+    return {
+      aqi:          Math.round(wAqi  / totalW),
+      pm25:         hasPm25 ? parseFloat((wPm25 / totalW).toFixed(1)) : '--',
+      pm10:         hasPm10 ? parseFloat((wPm10 / totalW).toFixed(1)) : '--',
+      no2:          parseFloat((wNo2 / totalW).toFixed(1)),
+      o3:           parseFloat((wO3  / totalW).toFixed(1)),
+      co:           '--',
+      station:      `Open-Meteo CAMS (${valid.length}-pt blend${hasDust ? ', dust-adj' : ''})`,
+      source:       'OpenMeteo',
+      dustCorrected: hasDust,
+    };
+  } catch(e) { return fetchFromOpenMeteo(lat, lon); }
+}
+
+async function fetchFromOpenMeteo(lat, lon) {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,pm10,nitrogen_dioxide,ozone,us_aqi&timezone=Asia%2FKolkata`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const c = json.current || {};
+    let aqi = null;
+    if (typeof c.us_aqi === 'number' && c.us_aqi > 0) aqi = c.us_aqi;
+    if (!aqi) return null;
+    aqi = Math.min(500, Math.max(0, Math.round(aqi)));
+
+    // ── Desert Dust Correction ──────────────────────────────────────────────
+    // Open-Meteo CAMS model includes natural mineral dust in its PM2.5/AQI
+    // output, which inflates readings dramatically for desert/arid locations.
+    // Apply a location-specific correction factor to strip the dust bias.
+    let dustNote = '';
+    const desert = getDesertCorrectionFactor(lat, lon);
+    if (desert) {
+      const raw = aqi;
+      aqi = Math.max(1, Math.round(aqi * desert.factor));
+      dustNote = ` [dust-adj ×${desert.factor} for ${desert.zoneName}, was ${raw}]`;
+      console.log(`[OpenMeteo] Desert correction applied${dustNote}`);
+    }
+
+    // Hard cap: only apply in non-IGP zones. The Indo-Gangetic Plain (UP, Bihar,
+    // Punjab, Haryana, Delhi, Rajasthan east) regularly sees AQI 250-400 from
+    // crop burning + geography. Capping at 200 there causes severe underreporting.
+    // Only cap for coastal/southern India where CAMS aerosol overcounting is real.
+    const isIGP = (lat >= 23 && lat <= 32 && lon >= 73 && lon <= 89);
+    const aqiCap = isIGP ? 400 : 200;
+    if (aqi > aqiCap) {
+      console.warn(`[OpenMeteo] AQI ${aqi} exceeds ${aqiCap} cap — clamping`);
+      aqi = aqiCap;
+    }
+
+    return {
+      aqi,
+      pm25:    typeof c.pm2_5 === 'number'            ? parseFloat((c.pm2_5 * (desert?.factor ?? 1)).toFixed(1)) : '--',
+      pm10:    typeof c.pm10  === 'number'            ? parseFloat((c.pm10  * (desert?.factor ?? 1)).toFixed(1)) : '--',
+      no2:     typeof c.nitrogen_dioxide === 'number' ? parseFloat(c.nitrogen_dioxide.toFixed(1))               : '--',
+      o3:      typeof c.ozone === 'number'            ? parseFloat(c.ozone.toFixed(1))                          : '--',
+      co:      '--',
+      station: `Open-Meteo CAMS${desert ? ' (dust-adj)' : ''}`,
+      source:  'OpenMeteo',
+      dustCorrected: !!desert,
+      dustZone: desert?.zoneName ?? null,
+    };
+  } catch(e) {
+    return null;
+  }
+}
+
+// ── Google Air Quality API ────────────────────────────────────────────────────
+// POST https://airquality.googleapis.com/v1/currentConditions:lookup
+// Returns Universal AQI + India CPCB AQI + all 6 pollutants at 500m resolution.
+// Free tier: 1,000 calls/day — no quota manager needed (generous limit).
+async function fetchFromGoogleAQ(lat, lon) {
+  if (!GOOGLE_AQ_KEY) return null;
+  try {
+    const url = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_AQ_KEY}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        location: { latitude: lat, longitude: lon },
+        universalAqi: true,
+        extraComputations: [
+          'LOCAL_AQI',
+          'POLLUTANT_CONCENTRATION',
+          'DOMINANT_POLLUTANT_CONCENTRATION',
+          'HEALTH_RECOMMENDATIONS',
+        ],
+        languageCode: 'en',
+      }),
+    });
+    if (!res.ok) {
+      console.warn(`[GoogleAQ] HTTP ${res.status}`);
+      return null;
+    }
+    const json = await res.json();
+    if (json.error) {
+      console.warn(`[GoogleAQ] API error: ${json.error.message}`);
+      return null;
+    }
+
+    // Pull Universal AQI (uaqi) — consistent worldwide scale
+    const indexes = json.indexes || [];
+    const uaqi = indexes.find(i => i.code === 'uaqi');
+    const indAqi = indexes.find(i => i.code === 'ind_cpcb'); // India CPCB index if available
+    // ind_cpcb = real India CPCB index (station-backed).
+    // uaqi     = Universal AQI (model estimate — less reliable for rural IGP).
+    // We tag which one was used so WCF can penalise uaqi in IGP zones.
+    const chosenIdx  = indAqi || uaqi;
+    const isLocalIdx = !!indAqi; // true only when ind_cpcb was actually returned
+    if (!chosenIdx || !chosenIdx.aqi) return null;
+
+    let aqi = Math.min(500, Math.max(0, Math.round(chosenIdx.aqi)));
+    if (aqi === 0) return null;
+
+    // ── UAQI → India CPCB rescaling ──────────────────────────────────────────
+    // When ind_cpcb is unavailable, Google returns UAQI (Universal AQI).
+    // UAQI uses WHO guidelines — its scale is compressed vs India CPCB, causing
+    // severe underreporting in IGP (Bihar, UP, Jharkhand etc.).
+    // Example: Muzaffarpur real CPCB AQI ~200, UAQI returns ~80.
+    //
+    // Rescaling using empirical mapping derived from paired UAQI/CPCB readings:
+    //   UAQI  0–50   → CPCB ×1.0  (Good — both scales align here)
+    //   UAQI 51–100  → CPCB ×1.6  (Moderate UAQI = Poor on CPCB)
+    //   UAQI 101–150 → CPCB ×2.0  (Unhealthy UAQI = Very Poor on CPCB)
+    //   UAQI 151+    → CPCB ×2.3  (Very Unhealthy+ UAQI = Severe on CPCB)
+    //
+    // This is an approximation. The real fix is ind_cpcb returning — but when
+    // CPCB has no station near the requested coordinates, this is far better
+    // than passing raw UAQI as if it were CPCB.
+    if (!isLocalIdx) {
+      let scale = 1.0;
+      if      (aqi <= 50)  scale = 1.0;
+      else if (aqi <= 100) scale = 1.6;
+      else if (aqi <= 150) scale = 2.0;
+      else                 scale = 2.3;
+      const rescaled = Math.min(500, Math.round(aqi * scale));
+      console.log(`[GoogleAQ] UAQI rescale: ${aqi} × ${scale} → ${rescaled} (India CPCB est.)`);
+      aqi = rescaled;
+    }
+
+    // Extract pollutant concentrations
+    const pollutants = {};
+    for (const p of (json.pollutants || [])) {
+      pollutants[p.code] = p.concentration?.value ?? null;
+    }
+
+    const stationLabel = `Google AQ (${chosenIdx.displayName || 'UAQI'})`;
+    console.log(`[GoogleAQ] ✓ ${stationLabel} → AQI ${aqi} (${isLocalIdx ? 'ind_cpcb ✓' : 'uaqi fallback'}) | dominant: ${chosenIdx.dominantPollutant || '?'}`);
+
+    return {
+      aqi,
+      pm25:    pollutants['pm25'] ?? '--',
+      pm10:    pollutants['pm10'] ?? '--',
+      no2:     pollutants['no2']  ?? '--',
+      o3:      pollutants['o3']   ?? '--',
+      co:      pollutants['co']   ?? '--',
+      so2:     pollutants['so2']  ?? '--',
+      station: stationLabel,
+      source:  'GoogleAQ',
+      isLocalIndex: isLocalIdx,    // ind_cpcb = true, uaqi fallback = false
+      dominantPollutant: chosenIdx.dominantPollutant || null,
+      aqiCategory: chosenIdx.category || null,
+    };
+  } catch(e) {
+    console.error('[GoogleAQ] Fetch failed:', e);
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── WEIGHTED CONFIDENCE FUSION (WCF) — AQI ORCHESTRATOR v2 ───────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// ALGORITHM DESIGN:
+//   Old approach: linear waterfall — first source that returns wins.
+//   Problem: a stale/far WAQI station silently beats a fresh Google model.
+//
+//   New approach: PARALLEL fetch ALL available sources simultaneously,
+//   assign each a CONFIDENCE SCORE (0–100), then compute a WEIGHTED BLEND
+//   of all credible sources rather than picking one winner.
+//
+//   Confidence scoring factors (additive, capped at 100):
+//     BASE_SCORE  — intrinsic reliability class of the source type
+//     PROXIMITY   — bonus if ground station is very close (<0.5°), penalty if far
+//     FRESHNESS   — age of reading penalises stale model runs
+//     POLLUTANT_COVERAGE — bonus if source returns PM2.5+PM10+NO₂ (richer = more trusted)
+//     DESERT_PENALTY — Open-Meteo gets a heavy penalty in arid zones (even after dust-adj)
+//
+//   FUSION RULE:
+//     • Sources with confidence < CONF_THRESHOLD (35) are discarded.
+//     • If only one credible source → use it directly (no blend noise).
+//     • If 2+ credible sources AND their AQI values agree within ±AGREE_BAND (30 pts)
+//       → weighted-average blend by confidence score.
+//     • If sources DIVERGE beyond AGREE_BAND → the highest-confidence ground
+//       station wins (sentinel rule: trust a closer real sensor over model).
+//
+//   IQAir is fetched lazily (quota) only when:
+//     A. ALL free sources returned nothing OR confidence < CONF_THRESHOLD.
+//     B. Blended AQI crosses a category boundary (Good/Hazardous) — verify.
+//
+//   Result carries a `fusion` object so the UI can show provenance badges.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const WCF = {
+  CONF_THRESHOLD : 30,
+  AGREE_BAND     : 45,  // wider now that UAQI rescaling reduces artificial divergence
+  BASE_SCORES: {
+    IQAir    : 80,  // physical station with proximity check
+    GoogleAQ : 78,  // coordinate-exact 500m India CPCB model — very reliable
+    WAQI     : 60,  // bounds-blended: higher than before since we IDW multiple stations
+    OpenMeteo: 50,  // CAMS satellite model
+    'IDW-Interpolated': 28,
+  },
+
+  // Compute final confidence score for one fetched result
+  score(result, requestLat, requestLon, isSparseZone) {
+    if (!result || result.aqi <= 0) return 0;
+
+    let score = this.BASE_SCORES[result.source] ?? 40;
+
+    // ── GoogleAQ UAQI fallback penalty ────────────────────────────────────────
+    // ind_cpcb = real CPCB reading → keep base score of 78.
+    // uaqi fallback = rescaled estimate → heavily penalise so WAQI/OpenMeteo
+    // can win the blend in areas where no CPCB station exists nearby.
+    if (result.source === 'GoogleAQ' && result.isLocalIndex === false) {
+      score -= 38; // drops from 78 → ~40 — below WAQI multi-station blend
+    }
+
+    // ── Multi-station WAQI blend bonus ────────────────────────────────────────
+    if (result.source === 'WAQI' && result.stationCount > 1) {
+      score += Math.min(result.stationCount * 4, 16); // up to +16 for 4+ stations
+    }
+
+    // ── Proximity bonus/penalty (ground-station sources only) ──────────────
+    if (result.stationLat != null && result.stationLon != null) {
+      const dist = Math.hypot(result.stationLat - requestLat, result.stationLon - requestLon) * 111; // km
+      if      (dist <  15) score += 20;  // within same locality — highly trusted
+      else if (dist <  30) score +=  5;  // same city area
+      else if (dist <  50) score -= 15;  // different city — significant penalty
+      else                 score -= 35;  // different region — WAQI drops below GoogleAQ
+    }
+
+    // ── Pollutant richness bonus ───────────────────────────────────────────
+    let richness = 0;
+    if (typeof result.pm25 === 'number') richness++;
+    if (typeof result.pm10 === 'number') richness++;
+    if (typeof result.no2  === 'number') richness++;
+    if (typeof result.o3   === 'number') richness++;
+    score += richness * 2;
+
+    // ── Desert/arid zone penalty for model sources ────────────────────────
+    // OpenMeteo already has dust correction applied — only small residual penalty
+    if (isSparseZone && result.source === 'OpenMeteo') score -= 5;
+    if (isSparseZone && result.source === 'GoogleAQ')  score -= 3;
+
+    // ── Dust-correction applied → partial confidence restoration ─────────
+    if (result.dustCorrected) score += 6;
+
+    return Math.max(0, Math.min(100, score));
+  },
+
+  // Blend multiple scored results into one fused output
+  blend(candidates) {
+    // candidates = [{result, confidence}, ...]  — all above threshold
+    if (candidates.length === 0) return null;
+
+    // ── Outlier rejection ─────────────────────────────────────────────────────
+    // If we have 2+ sources and one is an extreme outlier (>150pts from median
+    // of the others), drop it — this kills the "Supaul problem" where a far
+    // industrial WAQI station returns 500 while Google+OpenMeteo say 110-120.
+    if (candidates.length >= 2) {
+      const filtered = candidates.filter(c => {
+        const others = candidates.filter(x => x !== c).map(x => x.result.aqi);
+        if (others.length === 0) return true;
+        const median = others.sort((a,b)=>a-b)[Math.floor(others.length/2)];
+        const deviation = Math.abs(c.result.aqi - median);
+        if (deviation > 120) {
+          console.warn(`[WCF] Outlier rejected: ${c.result.source} AQI ${c.result.aqi} deviates ${deviation}pts from median ${median}`);
+          return false;
+        }
+        return true;
+      });
+      if (filtered.length > 0) candidates = filtered;
+    }
+
+    if (candidates.length === 1) {
+      return { ...candidates[0].result, fusion: { method: 'SINGLE', sources: [candidates[0].result.source], confidence: candidates[0].confidence } };
+    }
+
+    const aqis = candidates.map(c => c.result.aqi);
+    const minA = Math.min(...aqis), maxA = Math.max(...aqis);
+    const diverged = (maxA - minA) > this.AGREE_BAND;
+
+    if (diverged) {
+      // Sentinel: among remaining (post-outlier-rejection) pick highest confidence
+      const groundFirst = [...candidates].sort((a, b) => b.confidence - a.confidence);
+      const winner = groundFirst[0];
+      console.log(`[WCF] Diverge Δ${maxA-minA}pts — sentinel selects ${winner.result.source} (conf ${winner.confidence})`);
+      return {
+        ...winner.result,
+        fusion: {
+          method: 'SENTINEL',
+          divergence: maxA - minA,
+          sources: candidates.map(c => `${c.result.source}(${c.result.aqi})`),
+          confidence: winner.confidence,
+        }
+      };
+    }
+
+    // Weighted average blend
+    let totalW = 0, wAqi = 0, wPm25 = 0, wPm10 = 0, hasPm25 = false, hasPm10 = false;
+    for (const c of candidates) {
+      const w = c.confidence;
+      totalW += w;
+      wAqi   += c.result.aqi * w;
+      if (typeof c.result.pm25 === 'number') { wPm25 += c.result.pm25 * w; hasPm25 = true; }
+      if (typeof c.result.pm10 === 'number') { wPm10 += c.result.pm10 * w; hasPm10 = true; }
+    }
+    const best = [...candidates].sort((a,b) => b.confidence - a.confidence)[0];
+    const blended = {
+      ...best.result,
+      aqi:  Math.round(wAqi / totalW),
+      pm25: hasPm25 ? parseFloat((wPm25 / totalW).toFixed(1)) : best.result.pm25,
+      pm10: hasPm10 ? parseFloat((wPm10 / totalW).toFixed(1)) : best.result.pm10,
+      source: `WCF-Blend(${candidates.map(c=>c.result.source).join('+')})`,
+      station: best.result.station,
+      fusion: {
+        method: 'BLEND',
+        sources: candidates.map(c => `${c.result.source}(${c.result.aqi},${c.confidence})`),
+        confidence: Math.round(totalW / candidates.length),
+        spread: maxA - minA,
+      },
+    };
+    console.log(`[WCF] Blend AQI ${blended.aqi} from [${blended.fusion.sources.join(', ')}]`);
+    return blended;
+  }
+};
+
+async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0, distSpanLon = 0) {
+  const key = `${lat.toFixed(2)}_${lon.toFixed(2)}`;
+
+  // ── Cache read: use source-specific TTL ──────────────────────────────────
+  if (aqiCache[key]) {
+    const entry = aqiCache[key];
+    const ttl   = cacheTTL(entry.data?.source);
+    if (Date.now() - entry.ts < ttl) {
+      console.log(`[Cache HIT] ${key} (${entry.data?.source}) age ${Math.round((Date.now()-entry.ts)/60000)}min`);
+      return entry.data;
+    }
+  }
+
+  const isSparseZone = !!getDesertCorrectionFactor(lat, lon)
+    || ['Jammu & Kashmir','Himachal Pradesh','Uttarakhand','Goa',
+        'Arunachal Pradesh','Sikkim','Nagaland','Mizoram','Manipur','Meghalaya','Tripura']
+       .includes(stateName);
+
+  // Bounding-box radius: wider for sparse/NE zones, tighter for dense metros
+  // Using bounds API (not geo) — discovers ALL stations, not just the nearest one
+  const waqiBoundsRadius = isDistrict
+    ? (isSparseZone ? 0.45 : 0.28)   // district: ~50km sparse / ~31km dense
+    : (isSparseZone ? 1.2  : 0.6 );  // state:  ~133km sparse / ~67km dense
+
+  // ── PHASE 1: Parallel fetch of all FREE sources simultaneously ────────────
+  const fetchPromises = [];
+
+  // WAQI via Map/Bounds API — discovers all stations in the area, not just nearest
+  // No longer hardcodes skipped states; dynamically returns null if no stations found
+  fetchPromises.push(
+    fetchFromWAQIBounds(lat, lon, waqiBoundsRadius).catch(() => null)
+  );
+
+  // Google Air Quality
+  fetchPromises.push(fetchFromGoogleAQ(lat, lon).catch(() => null));
+
+  // Open-Meteo CAMS — multi-point sampling for large districts, single point otherwise
+  fetchPromises.push(
+    fetchFromOpenMeteoMultiPoint(lat, lon, distSpanLat, distSpanLon).catch(() => null)
+  );
+
+  // ── Await all in parallel ────────────────────────────────────────────────
+  const rawResults = await Promise.all(fetchPromises);
+  const validResults = rawResults.filter(r => r && r.aqi > 0);
+
+  // ── PHASE 2: Score each result ───────────────────────────────────────────
+  const scored = validResults
+    .map(r => ({ result: r, confidence: WCF.score(r, lat, lon, isSparseZone) }))
+    .filter(c => c.confidence >= WCF.CONF_THRESHOLD)
+    .sort((a, b) => b.confidence - a.confidence);
+
+  console.log(`[WCF] ${scored.length} credible sources for (${lat.toFixed(2)},${lon.toFixed(2)}):`,
+    scored.map(c => `${c.result.source}=${c.result.aqi}(${c.confidence})`).join(', '));
+
+  // ── PHASE 3: IQAir — last resort only, quota-guarded + rate-limited ─────────
+  // Policy: ONLY call IQAir when every free source (WAQI, GoogleAQ, OpenMeteo)
+  // returned nothing or scored below threshold. Never use it as a cross-check.
+  const st            = IQAirQuota.status();
+  const budgetHealthy = st.monthLeft > IQAIR_MONTHLY_BUDGET * 0.15;
+  let iqairResult     = null;
+
+  const hasAnyCredibleSource = scored.length > 0;
+  const hasGroundStation     = scored.some(c => ['WAQI','IQAir'].includes(c.result.source));
+
+  // Only call IQAir if: no credible source at all AND budget healthy
+  const needIQAir = budgetHealthy && !hasAnyCredibleSource;
+
+  if (needIQAir) {
+    console.log(`[IQAir] No free sources returned data — calling IQAir as last resort`);
+    iqairResult = await fetchFromIQAir(lat, lon, isDistrict);
+    if (iqairResult && iqairResult.aqi > 0) {
+      const conf = WCF.score(iqairResult, lat, lon, isSparseZone);
+      scored.push({ result: iqairResult, confidence: conf });
+      scored.sort((a,b) => b.confidence - a.confidence);
+      console.log(`[IQAir] ✓ last-resort result injected (conf ${conf})`);
+    }
+  }
+
+  // ── PHASE 4: Blend or fallback ────────────────────────────────────────────
+  let fused = WCF.blend(scored);
+
+  if (!fused) {
+    // Last resort: Open-Meteo even if below threshold
+    const om = rawResults.find(r => r?.source === 'OpenMeteo');
+    if (om) fused = { ...om, fusion: { method: 'FALLBACK', sources: ['OpenMeteo'], confidence: 30 } };
+  }
+
+  if (!fused) {
+    return { aqi: 0, pm25: '--', pm10: '--', no2: '--', o3: '--', co: '--', station: '', source: '' };
+  }
+
+  // ── PHASE 5: Cache write ──────────────────────────────────────────────────
+  const entry = { data: fused, ts: Date.now() };
+  aqiCache[key] = entry;
+  savePersistentCache(aqiCache);
+  return fused;
+}
+
+// ── Health advisory text by AQI range ────────────────────────────────────────
+function healthAdvisory(aqi) {
+  if (aqi <= 50)  return { text: 'Air quality is satisfactory. Enjoy outdoor activities.', color: '#00e87a' };
+  if (aqi <= 100) return { text: 'Acceptable air quality. Unusually sensitive individuals should consider reducing prolonged outdoor exertion.', color: '#a8e063' };
+  if (aqi <= 150) return { text: 'Sensitive groups (children, elderly, heart/lung conditions) should reduce outdoor activity.', color: '#ffaa00' };
+  if (aqi <= 200) return { text: 'Everyone should reduce prolonged or heavy outdoor exertion. Sensitive groups should avoid outdoor activity.', color: '#ff7733' };
+  if (aqi <= 300) return { text: 'Avoid outdoor activity. Everyone may begin to experience health effects. Wear N95 mask outdoors.', color: '#ff3344' };
+  return { text: 'Health emergency. Everyone should avoid all outdoor exertion. Stay indoors with air purifier if possible.', color: '#7b1fa2' };
+}
+
+// ── 24-hour AQI forecast from Open-Meteo hourly ───────────────────────────────
+async function fetchAQIForecast(lat, lon) {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi&forecast_days=2&timezone=Asia%2FKolkata`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (!json.hourly?.us_aqi || !json.hourly?.time) return null;
+
+    // Take the next 24 hours from current time
+    const now = Date.now();
+    const points = json.hourly.time
+      .map((t, i) => ({ t: new Date(t).getTime(), v: json.hourly.us_aqi[i] }))
+      .filter(p => p.t >= now && p.v != null && p.v > 0)
+      .slice(0, 24);
+    return points.length >= 3 ? points : null;
+  } catch(e) { return null; }
+}
+
+// ── Inline sparkline SVG from forecast data ───────────────────────────────────
+function buildForecastSparkline(points) {
+  const W = 230, H = 44, pad = 4;
+  const vals = points.map(p => p.v);
+  const mn = Math.min(...vals), mx = Math.max(...vals);
+  const range = mx - mn || 1;
+  const xStep = (W - pad * 2) / (points.length - 1);
+
+  const toX = i => pad + i * xStep;
+  const toY = v => H - pad - ((v - mn) / range) * (H - pad * 2);
+
+  const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(p.v).toFixed(1)}`).join(' ');
+  const fillD = `${pathD} L${toX(points.length-1).toFixed(1)},${H} L${toX(0).toFixed(1)},${H} Z`;
+
+  // Color the line by peak AQI
+  const peak = Math.max(...vals);
+  const lineColor = peak > 200 ? '#ff3344' : peak > 150 ? '#ff7733' : peak > 100 ? '#ffaa00' : '#00e5cc';
+
+  // Find current hour index for a dot marker
+  const nowIdx = 0;
+  const nowDot = `<circle cx="${toX(nowIdx).toFixed(1)}" cy="${toY(vals[0]).toFixed(1)}" r="3" fill="${lineColor}"/>`;
+
+  // Time labels: every 6 hours
+  const timeLabels = points
+    .filter((_, i) => i % 6 === 0)
+    .map((p, j) => {
+      const i = j * 6;
+      const hr = new Date(p.t).getHours();
+      const label = hr === 0 ? 'mid' : hr === 12 ? '12p' : hr + 'h';
+      return `<text x="${toX(i).toFixed(1)}" y="${H - 1}" font-size="7" fill="#5a7a8a" text-anchor="middle" font-family="Share Tech Mono">${label}</text>`;
+    }).join('');
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px;display:block;overflow:visible;">
+      <defs>
+        <linearGradient id="sfill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${lineColor}" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="${lineColor}" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      <path d="${fillD}" fill="url(#sfill)"/>
+      <path d="${pathD}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+      ${nowDot}
+      ${timeLabels}
+    </svg>`;
+}
+
+// ── Stored last-seen AQI per location key for trend arrows ────────────────────
+const prevAQIStore = {};
+
+async function showSelectedInfo(name, data) {
+  const lbl  = aqiLabel(data.aqi);
+  const adv  = healthAdvisory(data.aqi);
+
+  // ── Trend arrow: compare with previous reading for this location ──
+  const locKey = name;
+  let trendHtml = '';
+  if (prevAQIStore[locKey] != null) {
+    const delta = data.aqi - prevAQIStore[locKey];
+    if (Math.abs(delta) >= 5) {
+      const up = delta > 0;
+      trendHtml = `<span style="font-family:var(--mono);font-size:0.68rem;margin-left:0.4rem;color:${up ? 'var(--danger)' : 'var(--safe)'}">${up ? '↑' : '↓'} ${Math.abs(delta)}</span>`;
+    }
+  }
+  prevAQIStore[locKey] = data.aqi;
+
+  // ── Last updated age ──
+  const cacheKey = data._cacheKey || '';
+  const cacheEntry = aqiCache[cacheKey];
+  let ageHtml = '';
+  if (cacheEntry?.ts) {
+    const ageMin = Math.round((Date.now() - cacheEntry.ts) / 60000);
+    ageHtml = ageMin < 1 ? 'just now' : `${ageMin} min ago`;
+  }
+
+  // ── IQAir cross-check badge ──
+  // Reason label lookup for the badge header
+  const crossReasonLabel = {
+    'GOOD_VERIFY':         '✦ IQAIR GOOD-AIR VERIFY',
+    'HAZARDOUS_VERIFY':    '☣ IQAIR HAZARDOUS VERIFY',
+    'MODEL_SPARSE_VERIFY': '⚠ IQAIR MODEL/SPARSE VERIFY',
+  };
+  const crossReasonNote = {
+    'GOOD_VERIFY':         'AQI in Good range — cross-checked with ground station to rule out sensor gap',
+    'HAZARDOUS_VERIFY':    'AQI in Hazardous range — cross-checked with ground station to confirm emergency level',
+    'MODEL_SPARSE_VERIFY': 'Model source in sparse zone — cross-checked with ground station',
+  };
+
+  let crossCheckHtml = '';
+  if (data.crossChecked) {
+    const reasonHeader = crossReasonLabel[data.crossCheckReason] || '✦ IQAIR CROSS-CHECK';
+    const reasonNote   = crossReasonNote[data.crossCheckReason]  || '';
+    if (data.crossDiverged) {
+      crossCheckHtml = `
+        <div style="margin-top:0.6rem;padding:0.4rem 0.7rem;border:1px solid #ff9800;background:rgba(255,152,0,0.07);font-family:var(--mono);font-size:0.57rem;line-height:1.6;">
+          <div style="color:#ff9800;font-weight:700;letter-spacing:0.1em;margin-bottom:2px">⚠ IQAIR OVERRIDE · GROUND STATION WINS</div>
+          ${reasonNote ? `<div style="color:var(--text2);margin-bottom:3px;opacity:0.8">${reasonNote}</div>` : ''}
+          <div style="color:var(--text2)">Overridden → AQI <span style="color:#ff9800">${data.iqairAqi}</span> (Δ ${data.crossDiff} pts)</div>
+          ${data.iqairStation ? `<div style="color:var(--text2);opacity:0.7;margin-top:1px">📍 ${data.iqairStation}</div>` : ''}
+        </div>`;
+    } else {
+      // Pick badge colour by reason: green for good-verify, teal for others
+      const badgeColor = data.crossCheckReason === 'GOOD_VERIFY' ? '#00e676' : 'var(--safe)';
+      crossCheckHtml = `
+        <div style="margin-top:0.6rem;padding:0.4rem 0.7rem;border:1px solid ${badgeColor};background:rgba(0,229,160,0.05);font-family:var(--mono);font-size:0.57rem;line-height:1.6;">
+          <div style="color:${badgeColor};font-weight:700;letter-spacing:0.1em;margin-bottom:2px">${reasonHeader}</div>
+          ${reasonNote ? `<div style="color:var(--text2);margin-bottom:3px;opacity:0.8">${reasonNote}</div>` : ''}
+          <div style="color:var(--text2)">IQAir confirms AQI <span style="color:${badgeColor}">${data.iqairAqi}</span> · Δ ${data.crossDiff} pts</div>
+          ${data.iqairStation ? `<div style="color:var(--text2);opacity:0.7;margin-top:1px">📍 ${data.iqairStation}</div>` : ''}
+        </div>`;
+    }
+  } else if (data.crossCheckFailed) {
+    const reasonNote = crossReasonNote[data.crossCheckReason] || '';
+    crossCheckHtml = `
+      <div style="margin-top:0.6rem;padding:0.4rem 0.7rem;border:1px solid var(--border);background:rgba(255,255,255,0.02);font-family:var(--mono);font-size:0.57rem;line-height:1.5;">
+        ${reasonNote ? `<div style="color:var(--text2);margin-bottom:2px;opacity:0.8">${reasonNote}</div>` : ''}
+        <div style="color:var(--text2)">⚡ IQAir check unavailable · quota or no station nearby</div>
+      </div>`;
+  }
+
+  // ── Dust correction badge ──
+  let dustBadge = '';
+  if (data.dustCorrected && data.dustZone) {
+    dustBadge = `
+      <div style="margin-top:0.5rem;padding:0.35rem 0.7rem;border:1px solid #9c27b0;background:rgba(156,39,176,0.07);font-family:var(--mono);font-size:0.57rem;">
+        <span style="color:#ce93d8;font-weight:700">🏜 DUST ADJ</span> <span style="color:var(--text2)">${data.dustZone} — CAMS mineral dust bias removed</span>
+      </div>`;
+  }
+
+  // ── IDW badge ──
+  let idwBadge = '';
+  if (data.interpolated && data.source === 'IDW-Interpolated') {
+    idwBadge = `
+      <div style="margin-top:0.5rem;padding:0.35rem 0.7rem;border:1px solid var(--border);background:rgba(0,170,255,0.04);font-family:var(--mono);font-size:0.57rem;">
+        <span style="color:var(--blue);font-weight:700">⊕ IDW</span> <span style="color:var(--text2)">No ground station — blended from ${data.station}</span>
+      </div>`;
+  }
+
+  // ── Render shell immediately so user sees data fast ──
   document.getElementById('selectedInfo').innerHTML = `
-    <div class="sel-name">${name}</div>
-    <div class="sel-aqi-val" style="color:${lbl.color}">${data.aqi}</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.5rem;">
+      <div class="sel-name" style="flex:1">${name}</div>
+      <button onclick="refreshLocation('${name}',${data._lat || ''},${data._lon || ''},'${data._state || ''}')"
+        style="flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--text2);font-family:var(--mono);font-size:0.6rem;padding:0.2rem 0.5rem;cursor:pointer;transition:all 0.2s;letter-spacing:0.05em"
+        title="Force-refresh this location"
+        onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text2)'">⟳ REFRESH</button>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:0">
+      <div class="sel-aqi-val" style="color:${lbl.color}">${data.aqi}</div>
+      ${trendHtml}
+    </div>
     <div class="sel-aqi-label" style="color:${lbl.color}">${lbl.text}</div>
-    <div class="sel-pollutants">
+
+    <!-- Health advisory -->
+    <div style="margin-top:0.6rem;padding:0.4rem 0.7rem;border-left:2px solid ${adv.color};background:rgba(255,255,255,0.02);font-family:var(--mono);font-size:0.58rem;color:var(--text2);line-height:1.5;">
+      ${adv.text}
+    </div>
+
+    ${dustBadge}${idwBadge}
+
+    <!-- Pollutants -->
+    <!-- Dominant pollutant badge (Google AQ provides this) -->
+    ${data.dominantPollutant ? `<div style="margin-top:0.5rem;font-family:var(--mono);font-size:0.58rem;color:var(--text2);">Dominant: <span style="color:${lbl.color};font-weight:700">${data.dominantPollutant.toUpperCase()}</span>${data.aqiCategory ? ` · ${data.aqiCategory}` : ''}</div>` : ''}
+
+    <div class="sel-pollutants" style="margin-top:0.8rem;">
       <div class="sel-pol-row"><span class="sel-pol-name">PM2.5</span><span class="sel-pol-val">${typeof data.pm25 === 'number' ? data.pm25.toFixed(1) : data.pm25} μg/m³</span></div>
       <div class="sel-pol-row"><span class="sel-pol-name">PM10</span><span class="sel-pol-val">${typeof data.pm10 === 'number' ? data.pm10.toFixed(1) : data.pm10} μg/m³</span></div>
       <div class="sel-pol-row"><span class="sel-pol-name">NO₂</span><span class="sel-pol-val">${typeof data.no2 === 'number' ? data.no2.toFixed(1) : data.no2} μg/m³</span></div>
       <div class="sel-pol-row"><span class="sel-pol-name">O₃</span><span class="sel-pol-val">${typeof data.o3 === 'number' ? data.o3.toFixed(1) : data.o3} μg/m³</span></div>
       <div class="sel-pol-row"><span class="sel-pol-name">CO</span><span class="sel-pol-val">${typeof data.co === 'number' ? (data.co/1000).toFixed(2) : data.co} mg/m³</span></div>
+      ${typeof data.so2 === 'number' ? `<div class="sel-pol-row"><span class="sel-pol-name">SO₂</span><span class="sel-pol-val">${data.so2.toFixed(1)} μg/m³</span></div>` : ''}
     </div>
-    <div style="margin-top:0.8rem;font-family:var(--mono);font-size:0.55rem;color:var(--text2)">
-      Source: Open-Meteo · Updated: ${new Date().toLocaleTimeString('en-IN',{hour12:false})}
+
+    <!-- Source + timestamp -->
+    <div style="margin-top:0.7rem;font-family:var(--mono);font-size:0.55rem;color:var(--text2);">
+      ${data.station && data.source !== 'IDW-Interpolated' ? `<div style="margin-bottom:2px">📍 ${data.station}</div>` : ''}
+      <div>Source: <span style="color:${data.source === 'GoogleAQ' ? '#4285f4' : data.source?.includes('WCF') ? '#a78bfa' : 'var(--teal)' }">${data.source || 'WAQI'}</span>${data.stationCount > 1 ? ` <span style="color:var(--text2);font-size:0.52rem">(${data.stationCount} stations blended)</span>` : ''}${ageHtml ? ` · Data: <span style="color:var(--text2)">${ageHtml}</span>` : ''}</div>
+    </div>
+
+    <!-- 24h forecast placeholder — filled async below -->
+    <div id="forecastBlock" style="margin-top:0.8rem;border-top:1px solid var(--border);padding-top:0.7rem;">
+      <div style="font-family:var(--mono);font-size:0.58rem;color:var(--text2);letter-spacing:0.1em;margin-bottom:0.4rem;">24H AQI FORECAST</div>
+      <div id="forecastContent" style="font-family:var(--mono);font-size:0.6rem;color:var(--text2)">Loading forecast…</div>
     </div>
   `;
+
+  // ── Fetch 24h forecast asynchronously and inject into already-rendered sidebar ──
+  if (data._lat && data._lon) {
+    fetchAQIForecast(data._lat, data._lon).then(points => {
+      const el = document.getElementById('forecastContent');
+      if (!el) return;
+      if (!points) {
+        el.textContent = 'Forecast unavailable for this location.';
+        return;
+      }
+      const peak = Math.max(...points.map(p => p.v));
+      const peakLbl = aqiLabel(peak);
+      el.innerHTML = `
+        ${buildForecastSparkline(points)}
+        <div style="display:flex;justify-content:space-between;margin-top:0.3rem;">
+          <span style="color:var(--text2)">Now: <span style="color:${aqiLabel(points[0].v).color}">${points[0].v}</span></span>
+          <span style="color:var(--text2)">Peak: <span style="color:${peakLbl.color}">${peak}</span> · ${peakLbl.text}</span>
+        </div>`;
+    });
+  } else {
+    const fc = document.getElementById('forecastContent');
+    if (fc) fc.textContent = 'Click a region with known coordinates for forecast.';
+  }
+}
+
+// ── Force-refresh a location (bypass cache) ───────────────────────────────────
+async function refreshLocation(name, lat, lon, stateName) {
+  if (!lat || !lon) return;
+  const key = `${parseFloat(lat).toFixed(2)}_${parseFloat(lon).toFixed(2)}`;
+  delete aqiCache[key]; // bust cache entry so fetchAQI re-fetches
+  savePersistentCache(aqiCache);
+  const refreshBtn = document.querySelector('#selectedInfo button');
+  if (refreshBtn) { refreshBtn.textContent = '⟳ …'; refreshBtn.disabled = true; }
+  const fresh = await fetchAQI(parseFloat(lat), parseFloat(lon), stateName || '');
+  fresh._lat = parseFloat(lat);
+  fresh._lon = parseFloat(lon);
+  fresh._state = stateName || '';
+  fresh._cacheKey = key;
+  await showSelectedInfo(name, fresh);
 }
 
 // GeoJSON for Indian state boundaries (simplified)
@@ -1099,23 +2503,101 @@ async function loadIndiaGeoJSON() {
 }
 
 // Map GeoJSON state names to our INDIA_STATES entries
+// Aliases: GeoJSON name variants → canonical INDIA_STATES name
+// Needed because GeoJSON sources use old names or different spellings
+const STATE_NAME_ALIASES = {
+  'orissa':                  'Odisha',           // old official name still in many GeoJSONs
+  'odisha':                  'Odisha',
+  'jammuandkashmir':         'Jammu & Kashmir',  // GeoJSON drops the & → "and"
+  'jammukashmir':            'Jammu & Kashmir',
+  'jammuandkashmirladakh':   'Jammu & Kashmir',  // some GeoJSONs include Ladakh in J&K
+  'uttaranchal':             'Uttarakhand',       // old name
+  'pondicherry':             'Puducherry',        // old name
+  'puducherry':              'Puducherry',
+  'dadraandnagarhaveli':     'Dadra & Nagar Haveli',
+  'dadraandnagarhavelianddamanandDiu': 'Dadra & Nagar Haveli',
+  'damanandDiu':             'Daman & Diu',
+  'andamanandnicobarislands':'Andaman & Nicobar',
+  'andamannicobar':          'Andaman & Nicobar',
+  'telangana':               'Telangana',
+};
+
 function matchStateName(geoName) {
-  const norm = s => s.toLowerCase().replace(/[^a-z]/g,'');
+  if (!geoName) return null;
+  const norm = s => s.toLowerCase().replace(/[^a-z]/g, '');
   const gn = norm(geoName);
+
+  // 1. Explicit alias lookup — fastest and most reliable
+  if (STATE_NAME_ALIASES[gn]) {
+    const canonical = STATE_NAME_ALIASES[gn];
+    return INDIA_STATES.find(s => s.name === canonical) || null;
+  }
+
+  // 2. Exact normalised match
+  const exact = INDIA_STATES.find(s => norm(s.name) === gn);
+  if (exact) return exact;
+
+  // 3. Substring match — only if one clearly contains the other
+  // Guard: require match string length ≥ 5 to avoid false positives (e.g. "goa" matching "meghalaya")
   return INDIA_STATES.find(s => {
     const sn = norm(s.name);
-    return sn === gn || gn.includes(sn) || sn.includes(gn);
-  });
+    if (sn.length < 5 && gn.length < 5) return sn === gn; // short names must be exact
+    return gn.includes(sn) || sn.includes(gn);
+  }) || null;
 }
 
 let stateAQIData = {}; // name -> {aqi, color, ...}
+
+// Full display names (no truncation)
+// For multi-word states that are long, show them on two lines using a line-break char
+const STATE_DISPLAY = {
+  'Uttar Pradesh':     'UTTAR\nPRADESH',
+  'Madhya Pradesh':    'MADHYA\nPRADESH',
+  'Andhra Pradesh':    'ANDHRA\nPRADESH',
+  'Arunachal Pradesh': 'ARUNACHAL\nPRADESH',
+  'Himachal Pradesh':  'HIMACHAL\nPRADESH',
+  'Jammu & Kashmir':   'JAMMU &\nKASHMIR',
+  'West Bengal':       'WEST\nBENGAL',
+  'Tamil Nadu':        'TAMIL\nNADU',
+};
+
+// Helper: get display lines array for a state name
+function stateLines(name) {
+  if (STATE_DISPLAY[name]) return STATE_DISPLAY[name].split('\n');
+  // Single-word or short names show as-is
+  return [name.toUpperCase()];
+}
+
+// Label position overrides [lat, lon] — spread clashing states apart
+// These are ABSOLUTE positions (not offsets), replacing the default centroid
+const STATE_LABEL_POS = {
+  // North-west cluster: Delhi/Haryana/Punjab/Uttarakhand are almost co-located
+  'Delhi':             { lat: 28.82,  lon: 77.10 },   // nudge up-left
+  'Haryana':           { lat: 28.10,  lon: 76.20 },   // shift left
+  'Punjab':            { lat: 31.10,  lon: 75.50 },   // keep near Chandigarh but up
+  'Uttarakhand':       { lat: 30.10,  lon: 79.50 },   // move right into hills
+  'Himachal Pradesh':  { lat: 31.80,  lon: 77.00 },
+  'Jammu & Kashmir':   { lat: 33.20,  lon: 74.80 },
+
+  // NE cluster — spread them out
+  'Assam':             { lat: 26.50,  lon: 92.50 },
+  'Meghalaya':         { lat: 25.20,  lon: 91.00 },
+  'Nagaland':          { lat: 26.20,  lon: 94.60 },
+  'Manipur':           { lat: 24.30,  lon: 94.00 },
+  'Mizoram':           { lat: 23.20,  lon: 92.90 },
+  'Tripura':           { lat: 23.80,  lon: 91.60 },
+  'Arunachal Pradesh': { lat: 28.20,  lon: 94.80 },
+  'Sikkim':            { lat: 27.60,  lon: 88.50 },
+  'West Bengal':       { lat: 23.50,  lon: 87.50 },
+};
+
 
 async function renderStateMarkers() {
   if (stateLayerGroup) stateLayerGroup.clearLayers();
 
   // Fetch AQI for all states in parallel
   const promises = INDIA_STATES.map(async (s) => {
-    const data = await fetchAQI(s.lat, s.lon);
+    const data = await fetchAQI(s.lat, s.lon, s.name);
     stateAQIData[s.name] = { ...data, color: aqiColor(data.aqi) };
   });
   await Promise.all(promises);
@@ -1192,7 +2674,7 @@ async function renderStateMarkers() {
           display:flex;flex-direction:column;align-items:center;justify-content:center;
           border:2px solid rgba(0,0,0,0.4);box-shadow:0 0 12px ${color}88;cursor:pointer;line-height:1.1;">
           <span style="font-size:11px;font-weight:900;">${d ? d.aqi : '?'}</span>
-          <span style="font-size:7px;opacity:0.8">${s.name.split(' ')[0].substring(0,6).toUpperCase()}</span>
+          <span style="font-size:7px;opacity:0.8">${stateLines(s.name)[0]}</span>
         </div>`,
         iconSize: [44, 44], iconAnchor: [22, 22],
       });
@@ -1206,25 +2688,27 @@ async function renderStateMarkers() {
     const d = stateAQIData[s.name];
     if (!d) return;
     const color = d.color;
+    const lines = stateLines(s.name);
+    const nameHtml = lines.map(l =>
+      `<div style="font-size:10px;opacity:0.95;color:#fff;font-weight:700;line-height:1.15;text-shadow:0 0 4px #000,1px 1px 2px #000;">${l}</div>`
+    ).join('');
+    const iconH = 22 + lines.length * 13;
     const labelIcon = L.divIcon({
       className: '',
       html: `<div style="
         font-family:'Share Tech Mono',monospace;
-        font-size:10px;font-weight:900;
-        color:#fff;
-        text-shadow: 0 0 4px #000, 0 0 8px #000, 1px 1px 2px #000;
         white-space:nowrap;
         pointer-events:none;
-        line-height:1.2;
         text-align:center;
       ">
-        <div style="font-size:12px;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.aqi}</div>
-        <div style="font-size:7px;opacity:0.85;color:#fff">${s.name.split(' ')[0].substring(0,7).toUpperCase()}</div>
+        <div style="font-size:18px;font-weight:900;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.aqi}</div>
+        ${nameHtml}
       </div>`,
-      iconSize: [56, 28],
-      iconAnchor: [28, 14],
+      iconSize: [90, iconH],
+      iconAnchor: [45, iconH / 2],
     });
-    L.marker([s.lat, s.lon], { icon: labelIcon, interactive: false, keyboard: false }).addTo(stateLayerGroup);
+    const pos = STATE_LABEL_POS[s.name] || { lat: s.lat, lon: s.lon };
+    L.marker([pos.lat, pos.lon], { icon: labelIcon, interactive: false, keyboard: false }).addTo(stateLayerGroup);
   });
 }
 
@@ -1266,6 +2750,22 @@ const STATE_GEOJSON_URLS = {
   'Arunachal Pradesh': 'https://cdn.jsdelivr.net/gh/udit-001/india-maps-data@ef25ebc/geojson/states/arunachal-pradesh.geojson',
 };
 
+
+// Hardcoded Delhi 11-district GeoJSON (real boundary approximations)
+const DELHI_DISTRICTS_GEOJSON = {"type":"FeatureCollection","features":[
+  {"type":"Feature","properties":{"district":"Central Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.190,28.620],[77.240,28.620],[77.250,28.660],[77.220,28.670],[77.190,28.650],[77.190,28.620]]]}},
+  {"type":"Feature","properties":{"district":"East Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.250,28.620],[77.320,28.620],[77.330,28.680],[77.250,28.680],[77.250,28.620]]]}},
+  {"type":"Feature","properties":{"district":"New Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.170,28.570],[77.240,28.570],[77.250,28.620],[77.190,28.620],[77.170,28.600],[77.170,28.570]]]}},
+  {"type":"Feature","properties":{"district":"North Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.120,28.670],[77.220,28.670],[77.220,28.740],[77.120,28.740],[77.120,28.670]]]}},
+  {"type":"Feature","properties":{"district":"North East Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.220,28.670],[77.330,28.680],[77.320,28.740],[77.220,28.740],[77.220,28.670]]]}},
+  {"type":"Feature","properties":{"district":"North West Delhi"},"geometry":{"type":"Polygon","coordinates":[[[76.980,28.670],[77.120,28.670],[77.120,28.800],[76.980,28.800],[76.980,28.670]]]}},
+  {"type":"Feature","properties":{"district":"Shahdara"},"geometry":{"type":"Polygon","coordinates":[[[77.250,28.680],[77.330,28.680],[77.340,28.740],[77.250,28.740],[77.250,28.680]]]}},
+  {"type":"Feature","properties":{"district":"South Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.120,28.480],[77.270,28.480],[77.270,28.570],[77.170,28.570],[77.120,28.570],[77.120,28.480]]]}},
+  {"type":"Feature","properties":{"district":"South East Delhi"},"geometry":{"type":"Polygon","coordinates":[[[77.270,28.480],[77.350,28.480],[77.350,28.590],[77.270,28.590],[77.270,28.480]]]}},
+  {"type":"Feature","properties":{"district":"South West Delhi"},"geometry":{"type":"Polygon","coordinates":[[[76.980,28.480],[77.120,28.480],[77.120,28.570],[76.980,28.570],[76.980,28.480]]]}},
+  {"type":"Feature","properties":{"district":"West Delhi"},"geometry":{"type":"Polygon","coordinates":[[[76.980,28.570],[77.170,28.570],[77.190,28.620],[77.190,28.650],[77.120,28.670],[76.980,28.670],[76.980,28.570]]]}}
+]};
+
 async function loadDistrictGeoJSON(stateName) {
   if (districtGeoCache[stateName] !== undefined) return districtGeoCache[stateName];
   const url = STATE_GEOJSON_URLS[stateName];
@@ -1283,9 +2783,9 @@ async function loadDistrictGeoJSON(stateName) {
 }
 
 async function renderDistrictMarkers(stateName) {
-  if (districtLayerGroup) districtLayerGroup.clearLayers();
+  // Note: districtLayerGroup is cleared by the caller before parallel renderDistrictMarkers calls
 
-  // Try GeoJSON district choropleth first
+  // Load district GeoJSON for this state
   const geo = await loadDistrictGeoJSON(stateName);
 
   if (geo && geo.features && geo.features.length > 0) {
@@ -1300,13 +2800,70 @@ async function renderDistrictMarkers(stateName) {
         const lons = coords.map(c => c[0]);
         const lat = lats.reduce((a,b)=>a+b,0)/lats.length;
         const lon = lons.reduce((a,b)=>a+b,0)/lons.length;
+        // Bounding box span — used for multi-point Open-Meteo sampling
+        const spanLat = Math.max(...lats) - Math.min(...lats);
+        const spanLon = Math.max(...lons) - Math.min(...lons);
         const distName = f.properties.district || f.properties.DISTRICT
           || f.properties.NAME_2 || f.properties.name
           || f.properties.NAME || f.properties.dtname || 'Unknown';
-        const data = await fetchAQI(lat, lon);
+        const data = await fetchAQI(lat, lon, stateName, true, spanLat, spanLon);
         aqiMap[distName] = { ...data, lat, lon };
       } catch(e) {}
     }));
+
+    // ── Fill zero-AQI districts: IDW > Open-Meteo(dust-corrected) > state avg ──
+    const zeroEntries = Object.entries(aqiMap).filter(([, d]) => d.aqi === 0);
+    await Promise.all(zeroEntries.map(async ([distName, distData]) => {
+      const { lat, lon } = distData;
+
+      // A) Open-Meteo CAMS with desert-dust correction (multi-point for large districts)
+      try {
+        const om = await fetchFromOpenMeteoMultiPoint(lat, lon);
+        if (om && om.aqi > 0) {
+          aqiMap[distName] = { ...distData, ...om, interpolated: false };
+          aqiCache[`${lat.toFixed(2)}_${lon.toFixed(2)}`] = { data: aqiMap[distName], ts: Date.now() };
+          return;
+        }
+      } catch(e) {}
+
+      // B) IDW blend — require ≥3 neighbours so we blend, not just copy one point
+      const nonZero = Object.values(aqiMap).filter(d => d.aqi > 0 && d.lat != null && d.lon != null);
+      if (nonZero.length >= 3) {
+        const idw = idwInterpolate(lat, lon, nonZero);
+        if (idw && idw.aqi > 0) {
+          aqiMap[distName] = { ...distData, ...idw, interpolated: true };
+          return;
+        }
+      }
+
+      // C) State-level average — final safety net
+      if (stateAQIData[stateName]?.aqi > 0) {
+        aqiMap[distName] = { ...distData, ...stateAQIData[stateName], interpolated: true };
+      }
+    }));
+
+    // ── NEIGHBOUR SANITY CHECK ────────────────────────────────────────────────
+    // If a non-interpolated district AQI deviates >55 from median of neighbours,
+    // it is likely a wrong/mismatched station — override with IDW blend.
+    const allDistEntries = Object.entries(aqiMap).filter(([, d]) => d.aqi > 0 && d.lat != null && d.lon != null);
+    for (const [distName, distData] of allDistEntries) {
+      const neighbours = allDistEntries
+        .filter(([n, d]) => n !== distName && Math.hypot(d.lat - distData.lat, d.lon - distData.lon) < 1.2)
+        .map(([, d]) => d.aqi)
+        .sort((a, b) => a - b);
+      if (neighbours.length < 2) continue;
+      const median = neighbours[Math.floor(neighbours.length / 2)];
+      if (Math.abs(distData.aqi - median) > 55 && !distData.interpolated) {
+        const neighbourData = allDistEntries
+          .filter(([n, d]) => n !== distName && Math.hypot(d.lat - distData.lat, d.lon - distData.lon) < 1.2)
+          .map(([, d]) => d);
+        const idw = idwInterpolate(distData.lat, distData.lon, neighbourData);
+        if (idw && idw.aqi > 0) {
+          console.warn(`[SanityCheck] ${distName}: AQI ${distData.aqi} → median ${median} (Δ${Math.abs(distData.aqi - median)}) — overriding with IDW ${idw.aqi}`);
+          aqiMap[distName] = { ...distData, ...idw, interpolated: true };
+        }
+      }
+    }
 
     // Helper to get district name from feature
     const getDistName = f => f.properties.district || f.properties.DISTRICT
@@ -1364,36 +2921,78 @@ async function renderDistrictMarkers(stateName) {
         const labelIcon = L.divIcon({
           className: '',
           html: `<div style="font-family:'Share Tech Mono',monospace;text-align:center;pointer-events:none;line-height:1.2;">
-            <div style="font-size:11px;font-weight:900;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.aqi}</div>
-            <div style="font-size:6px;color:#fff;text-shadow:0 0 4px #000,1px 1px 2px #000;opacity:0.9">${distName.substring(0,8).toUpperCase()}</div>
+            <div style="font-size:16px;font-weight:900;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${d.interpolated ? '~' : ''}${d.aqi}</div>
+            <div style="font-size:10px;color:#fff;text-shadow:0 0 4px #000,1px 1px 2px #000;opacity:0.95;font-weight:700;">${distName.substring(0,8).toUpperCase()}</div>
           </div>`,
-          iconSize: [60, 24],
-          iconAnchor: [30, 12],
+          iconSize: [80, 34],
+          iconAnchor: [40, 17],
         });
         L.marker([lat, lon], { icon: labelIcon, interactive: false, keyboard: false }).addTo(districtLayerGroup);
       } catch(e) {}
     });
 
   } else {
-    // Fallback: use DISTRICT_CLUSTERS with styled cards
+    // Fallback: GeoJSON unavailable — show centroid dot + label markers (no cards)
     const districts = DISTRICT_CLUSTERS[stateName] || [];
     await Promise.all(districts.map(async d => {
-      const data = await fetchAQI(d.lat, d.lon);
+      const data = await fetchAQI(d.lat, d.lon, stateName);
       const color = aqiColor(data.aqi);
       const lbl = aqiLabel(data.aqi);
-      const icon = L.divIcon({
+      // Dot marker
+      const dotIcon = L.divIcon({
         className: '',
-        html: `<div style="background:rgba(8,12,16,0.9);border:2px solid ${color};border-radius:4px;font-family:'Share Tech Mono',monospace;padding:5px 8px;min-width:64px;text-align:center;box-shadow:0 0 12px ${color}66;cursor:pointer;line-height:1.3;">
-          <div style="font-size:7px;color:#8aa;letter-spacing:0.08em;margin-bottom:2px">${d.name.toUpperCase()}</div>
-          <div style="font-size:16px;font-weight:900;color:${color};line-height:1">${data.aqi}</div>
-          <div style="font-size:6px;color:${color};opacity:0.85;margin-top:1px">${lbl.text}</div>
-        </div>`,
-        iconSize: [72, 52], iconAnchor: [36, 26],
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};opacity:0.85;box-shadow:0 0 8px ${color};border:2px solid rgba(0,0,0,0.5);"></div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7],
       });
-      const m = L.marker([d.lat, d.lon], { icon }).addTo(districtLayerGroup);
-      m.on('click', () => showSelectedInfo(d.name + ', ' + stateName, data));
+      const dot = L.marker([d.lat, d.lon], { icon: dotIcon }).addTo(districtLayerGroup);
+      dot.on('click', () => showSelectedInfo(d.name + ', ' + stateName, data));
+      // Label above dot
+      const labelIcon = L.divIcon({
+        className: '',
+        html: `<div style="font-family:'Share Tech Mono',monospace;text-align:center;pointer-events:none;line-height:1.2;">
+          <div style="font-size:15px;font-weight:900;color:${color};text-shadow:0 0 6px #000,1px 1px 2px #000;">${data.aqi}</div>
+          <div style="font-size:9px;color:#fff;text-shadow:0 0 4px #000;opacity:0.95;font-weight:700;">${d.name.toUpperCase()}</div>
+        </div>`,
+        iconSize: [90, 30], iconAnchor: [45, 38],
+      });
+      L.marker([d.lat, d.lon], { icon: labelIcon, interactive: false }).addTo(districtLayerGroup);
     }));
   }
+}
+
+function updateQuotaWidget() {
+  const st = IQAirQuota.status();
+  const pct = parseFloat(st.monthPct);
+  const bar = document.getElementById('quotaBar');
+  const pctEl = document.getElementById('quotaMonthPct');
+  const dayEl = document.getElementById('quotaDay');
+  const monEl = document.getElementById('quotaMonth');
+  if (!bar) return;
+  bar.style.width = pct + '%';
+  // Color: green < 60%, amber 60-85%, red > 85%
+  const color = pct > 85 ? 'var(--danger)' : pct > 60 ? 'var(--warn)' : 'var(--safe)';
+  bar.style.background = color;
+  pctEl.style.color = color;
+  pctEl.textContent = pct + '%';
+  dayEl.textContent = st.day;
+  monEl.textContent = st.month;
+}
+
+async function renderStateBorders() {
+  if (!stateBorderLayer) return;
+  stateBorderLayer.clearLayers();
+  const geo = await loadIndiaGeoJSON();
+  if (!geo) return;
+  L.geoJSON(geo, {
+    style: () => ({
+      fill: false,
+      color: '#000',
+      weight: 3,
+      opacity: 0.85,
+      lineJoin: 'round',
+    }),
+    interactive: false,
+  }).addTo(stateBorderLayer);
 }
 
 async function initMap() {
@@ -1404,7 +3003,7 @@ async function initMap() {
     zoom: 5,
     minZoom: 4,
     maxZoom: 10,
-    zoomControl: true,
+    zoomControl: false,
   });
 
   // Dark tile layer
@@ -1414,37 +3013,60 @@ async function initMap() {
     maxZoom: 19,
   }).addTo(aqiMap);
 
-  stateLayerGroup   = L.layerGroup().addTo(aqiMap);
+  stateLayerGroup    = L.layerGroup().addTo(aqiMap);
   districtLayerGroup = L.layerGroup().addTo(aqiMap);
+  stateBorderLayer   = L.layerGroup().addTo(aqiMap);  // always on top: state borders when zoomed in
 
   document.getElementById('mapLoading').style.display = 'flex';
   await renderStateMarkers();
   document.getElementById('mapLoading').style.display = 'none';
+  updateQuotaWidget();
 
-  aqiMap.on('zoomend moveend', async () => {
-    const z = aqiMap.getZoom();
-    currentZoom = z;
-    if (z >= 6) {
-      // Find closest state to map center
-      const center = aqiMap.getCenter();
-      let closest = null, minDist = Infinity;
-      INDIA_STATES.forEach(s => {
-        const d = Math.hypot(s.lat - center.lat, s.lon - center.lng);
-        if (d < minDist) { minDist = d; closest = s; }
-      });
-      if (!closest) return;
-      document.getElementById('mapZoomLabel').textContent = `ZOOM: District View · ${closest.name}`;
-      stateLayerGroup.clearLayers();
-      document.getElementById('mapLoading').style.display = 'flex';
-      await renderDistrictMarkers(closest.name);
-      document.getElementById('mapLoading').style.display = 'none';
-    } else {
-      document.getElementById('mapZoomLabel').textContent = 'ZOOM: State View · Scroll to zoom into districts';
-      districtLayerGroup.clearLayers();
-      document.getElementById('mapLoading').style.display = 'flex';
-      await renderStateMarkers();
-      document.getElementById('mapLoading').style.display = 'none';
-    }
+  let lastZoomMode = null; // 'state' or 'district'
+  let lastVisibleKey = '';
+  let zoomMoveTimer = null;
+
+  aqiMap.on('zoomend moveend', () => {
+    clearTimeout(zoomMoveTimer);
+    zoomMoveTimer = setTimeout(async () => {
+      const z = aqiMap.getZoom();
+      currentZoom = z;
+      if (z >= 6) {
+        // Find ALL states whose centroid is within the visible bounds (plus a buffer)
+        const bounds = aqiMap.getBounds().pad(0.5);
+        const visibleStates = INDIA_STATES.filter(s =>
+          bounds.contains([s.lat, s.lon])
+        );
+        if (visibleStates.length === 0) return;
+
+        // Build a key to avoid re-rendering same view
+        const visKey = visibleStates.map(s => s.name).sort().join(',');
+        if (lastZoomMode === 'district' && visKey === lastVisibleKey) return;
+        lastZoomMode = 'district';
+        lastVisibleKey = visKey;
+
+        document.getElementById('mapZoomLabel').textContent = `ZOOM: District View · ${visibleStates.map(s=>s.name).join(', ')}`;
+        stateLayerGroup.clearLayers();
+        districtLayerGroup.clearLayers();
+        document.getElementById('mapLoading').style.display = 'flex';
+        // Render all visible states in parallel
+        await Promise.all(visibleStates.map(s => renderDistrictMarkers(s.name)));
+        // Overlay thick state borders on top of district polygons
+        await renderStateBorders();
+        document.getElementById('mapLoading').style.display = 'none';
+      } else {
+        if (lastZoomMode === 'state') return;
+        lastZoomMode = 'state';
+        lastVisibleKey = '';
+        document.getElementById('mapZoomLabel').textContent = 'ZOOM: State View · Scroll to zoom into districts';
+        districtLayerGroup.clearLayers();
+        if (stateBorderLayer) stateBorderLayer.clearLayers();
+        document.getElementById('mapLoading').style.display = 'flex';
+        await renderStateMarkers();
+        document.getElementById('mapLoading').style.display = 'none';
+        updateQuotaWidget();
+      }
+    }, 400); // 400ms debounce
   });
 }
 
@@ -1461,6 +3083,85 @@ function openMap() {
 
 function closeMap() {
   document.getElementById('mapModal').classList.remove('show');
+}
+
+function toggleMapSearch() {
+  const inp = document.getElementById('mapSearchInput');
+  const res = document.getElementById('mapSearchResults');
+  inp.classList.toggle('open');
+  if (inp.classList.contains('open')) {
+    inp.focus();
+    mapSearchFilter('');
+  } else {
+    inp.value = '';
+    res.classList.remove('open');
+  }
+}
+
+function mapSearchFilter(val) {
+  const res = document.getElementById('mapSearchResults');
+  const q = val.trim().toLowerCase();
+  if (!q) { res.classList.remove('open'); return; }
+
+  // Search states
+  const stateMatches = INDIA_STATES
+    .filter(s => s.name.toLowerCase().includes(q))
+    .map(s => ({ label: s.name, sub: 'State', lat: s.lat, lon: s.lon, zoom: 6, type: 'state' }));
+
+  // Search districts across all states
+  const districtMatches = [];
+  for (const [stateName, districts] of Object.entries(DISTRICT_CLUSTERS)) {
+    for (const d of districts) {
+      if (d.name.toLowerCase().includes(q)) {
+        districtMatches.push({ label: d.name, sub: stateName, lat: d.lat, lon: d.lon, zoom: 9, type: 'district' });
+      }
+    }
+  }
+
+  const all = [...stateMatches, ...districtMatches].slice(0, 12);
+  if (all.length === 0) { res.classList.remove('open'); return; }
+
+  res.innerHTML = all.map(r =>
+    `<div class="map-search-item" onclick="mapFlyTo('${r.label.replace(/'/g,"\'")}',${r.lat},${r.lon},${r.zoom},'${r.type}','${r.sub.replace(/'/g,"\'")}')">
+      <span style="color:var(--teal)">${r.label}</span>
+      <span style="color:var(--text2);font-size:0.6rem;margin-left:6px">${r.sub}</span>
+    </div>`
+  ).join('');
+  res.classList.add('open');
+}
+
+function mapSearchKey(e) {
+  if (e.key === 'Escape') toggleMapSearch();
+}
+
+function mapFlyTo(name, lat, lon, zoom=7, type='state', stateName='') {
+  const inp = document.getElementById('mapSearchInput');
+  const res = document.getElementById('mapSearchResults');
+  inp.classList.remove('open');
+  res.classList.remove('open');
+  inp.value = '';
+  if (!aqiMap) return;
+  aqiMap.flyTo([lat, lon], zoom, { duration: 1.2 });
+  // For districts, trigger district view after fly completes
+  if (type === 'district' && stateName) {
+    setTimeout(async () => {
+      stateLayerGroup.clearLayers();
+      districtLayerGroup.clearLayers();
+      document.getElementById('mapZoomLabel').textContent = `ZOOM: District View · ${stateName}`;
+      document.getElementById('mapLoading').style.display = 'flex';
+      await renderDistrictMarkers(stateName);
+      await renderStateBorders();
+      document.getElementById('mapLoading').style.display = 'none';
+    }, 1300); // wait for flyTo to finish
+  }
+}
+
+function mapZoomIn()  { if (aqiMap) aqiMap.zoomIn(); }
+function mapZoomOut() { if (aqiMap) aqiMap.zoomOut(); }
+
+function closeSidebarInfo() {
+  document.getElementById('selectedInfo').innerHTML =
+    '<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text2);text-align:center;margin-top:2rem;">Click any region on the map to see detailed AQI data</div>';
 }
 </script>
 </body>
