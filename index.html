@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AirWatch — IoT Air Quality Monitor</title>
+<meta name="theme-color" content="#00e5cc">
+<meta name="description" content="Aeromatrics — Real-time India Air Quality Index with multi-source fusion, satellite wind & pollution layers.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Aeromatrics">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Aeromatrics — India Air Quality Monitor</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <script src="config.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -483,14 +491,96 @@ main {
   .gauges-section, .top-bar { grid-template-columns: 1fr; }
   main { padding: 1rem; }
 }
+
+/* ── WINDY WIND & POLLUTION MODAL ─────────────────────────────── */
+#windyModal {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(4,8,12,0.98); flex-direction: column;
+}
+#windyModal.show { display: flex; }
+
+.windy-header {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.75rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2); flex-shrink: 0; flex-wrap: wrap;
+}
+.windy-title { font-size: 0.88rem; font-weight: 700; letter-spacing: 0.15em; color: var(--blue); white-space: nowrap; }
+.windy-subtitle { font-family: var(--mono); font-size: 0.58rem; color: var(--text2); white-space: nowrap; }
+.windy-pills { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; flex: 1; margin: 0 0.5rem; }
+.w-pill {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); padding: 0.22rem 0.65rem;
+  font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.07em;
+  cursor: pointer; transition: all 0.18s; white-space: nowrap;
+}
+.w-pill:hover { border-color: var(--blue); color: var(--blue); }
+.w-pill.on     { border-color: var(--teal);   color: var(--teal);   background: rgba(0,229,204,0.07); box-shadow: var(--glow-t); }
+.w-pill.on.w   { border-color: var(--warn);   color: var(--warn);   background: rgba(255,170,0,0.06); }
+.w-pill.on.d   { border-color: var(--danger); color: var(--danger); background: rgba(255,51,68,0.06); }
+.w-pill.on.b   { border-color: var(--blue);   color: var(--blue);   background: rgba(0,170,255,0.07); }
+
+.windy-body { flex: 1; position: relative; overflow: hidden; }
+#windyIframe { width: 100%; height: 100%; border: none; display: block; }
+
+.windy-legend {
+  position: absolute; bottom: 1rem; left: 1rem;
+  background: rgba(8,12,16,0.9); border: 1px solid var(--border);
+  padding: 0.55rem 0.9rem; font-family: var(--mono); font-size: 0.58rem;
+  color: var(--text2); pointer-events: none; line-height: 1.8; max-width: 260px;
+}
+.windy-legend-name { color: var(--blue); font-weight: 700; font-size: 0.66rem; letter-spacing: 0.1em; }
+
+.windy-close {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); cursor: pointer; width: 30px; height: 30px;
+  font-size: 0.95rem; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; flex-shrink: 0; margin-left: auto;
+}
+.windy-close:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Windy nav button */
+.windy-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: transparent; border: 1px solid var(--blue);
+  color: var(--blue); padding: 0.3rem 0.9rem;
+  font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em;
+  cursor: pointer; transition: all 0.3s;
+}
+.windy-btn:hover { background: rgba(0,170,255,0.1); box-shadow: 0 0 18px rgba(0,170,255,0.3); }
+
+
+/* ── PWA INSTALL BUTTON ───────────────────────────────────────── */
+#pwaInstallBtn {
+  display: none;               /* hidden until beforeinstallprompt fires */
+  align-items: center;
+  gap: 0.45rem;
+  background: transparent;
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  padding: 0.28rem 0.85rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 0.25s;
+  white-space: nowrap;
+  margin-right: 0.6rem;
+}
+#pwaInstallBtn:hover {
+  background: rgba(0,229,204,0.1);
+  box-shadow: 0 0 16px rgba(0,229,204,0.35);
+}
+#pwaInstallBtn svg { flex-shrink: 0; }
+
 </style>
 </head>
 <body>
 <script>
   // Force-clear AQI cache on every load so corrected fetch logic always runs fresh
   try {
-    ['aqiCache_v1','aqiCache_v2','aqiCache_v3','aqiCache_v4',
-     'aqiCache_v4_ver','aqiCache_v3_ver'].forEach(k => localStorage.removeItem(k));
+    ['aeromatrics_cache_v1','aeromatrics_cache_v2','aeromatrics_cache_v3','aeromatrics_cache_v4',
+     'aeromatrics_cache_v4_ver','aeromatrics_cache_v3_ver'].forEach(k => localStorage.removeItem(k));
   } catch(e) {}
 </script>
 
@@ -501,9 +591,13 @@ main {
 <div id="mapModal">
   <div class="map-modal-header">
     <div>
-      <div class="map-modal-title">// INDIA AIR QUALITY INDEX — LIVE</div>
+      <div class="map-modal-title">// AEROMATRICS · INDIA AIR QUALITY INDEX — LIVE</div>
       <div class="map-modal-sub" id="mapZoomLabel">ZOOM: State View · Scroll to zoom into districts</div>
     </div>
+    <button id="pwaInstallBtn" onclick="pwaInstall()" title="Install Aeromatrics App">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      INSTALL APP
+    </button>
     <button class="map-close-btn" onclick="closeMap()">✕</button>
   </div>
   <div class="map-body">
@@ -561,6 +655,43 @@ main {
   </div>
 </div>
 
+<!-- WINDY WIND & POLLUTION MODAL -->
+<div id="windyModal">
+  <div class="windy-header">
+    <div>
+      <div class="windy-title">// WIND &amp; POLLUTION — LIVE SATELLITE</div>
+      <div class="windy-subtitle" id="windySubtitle">PM 2.5 · Fine particulate matter · ECMWF forecast model</div>
+    </div>
+    <div class="windy-pills">
+      <button class="w-pill on"  onclick="setWLayer(this,'pm2p5')">PM 2.5</button>
+      <button class="w-pill"     onclick="setWLayer(this,'pm10')">PM 10</button>
+      <button class="w-pill"     onclick="setWLayer(this,'cosc')">CO</button>
+      <button class="w-pill"     onclick="setWLayer(this,'o3')">O&#x2083;</button>
+      <button class="w-pill w"   onclick="setWLayer(this,'no2')">NO&#x2082;</button>
+      <button class="w-pill w"   onclick="setWLayer(this,'so2')">SO&#x2082;</button>
+      <button class="w-pill d"   onclick="setWLayer(this,'dust')">DUST</button>
+      <button class="w-pill b"   onclick="setWLayer(this,'wind')">WIND</button>
+      <button class="w-pill b"   onclick="setWLayer(this,'rain')">RAIN</button>
+      <button class="w-pill b"   onclick="setWLayer(this,'temp')">TEMP</button>
+      <button class="w-pill b"   onclick="setWLayer(this,'clouds')">CLOUDS</button>
+      <button class="w-pill b"   onclick="setWLayer(this,'snowcover')">SNOW</button>
+    </div>
+    <button class="windy-close" onclick="closeWindy()" title="Close">&#x2715;</button>
+  </div>
+  <div class="windy-body">
+    <iframe id="windyIframe"
+      src=""
+      allowfullscreen loading="lazy">
+    </iframe>
+    <div class="windy-legend">
+      <div class="windy-legend-name" id="wLayerName">PM 2.5</div>
+      <div id="wLayerDetail">Fine particulate matter pollution</div>
+      <div style="margin-top:0.3rem">ECMWF · Surface level · India centered</div>
+      <div style="color:var(--teal);margin-top:0.2rem">Zoom &amp; pan freely · Click for point data</div>
+    </div>
+  </div>
+</div>
+
 <!-- ALERT BANNER -->
 <div id="alertBanner">
   <div class="banner-text">
@@ -580,6 +711,10 @@ main {
     <button class="map-btn" onclick="openMap()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       INDIA AQI MAP
+    </button>
+    <button class="windy-btn" onclick="openWindy()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+      WIND &amp; POLLUTION
     </button>
     <div class="status-pill online" id="statusPill">
       <div class="status-dot pulse" id="statusDot"></div>
@@ -1074,16 +1209,77 @@ const INDIA_STATES = [
 // Major districts/cities per state (sample for zoom-in fallback when GeoJSON unavailable)
 const DISTRICT_CLUSTERS = {
   'Uttar Pradesh': [
-    { name: 'Lucknow',     lat: 26.8467, lon: 80.9462 },
-    { name: 'Kanpur',      lat: 26.4499, lon: 80.3319 },
-    { name: 'Agra',        lat: 27.1767, lon: 78.0081 },
-    { name: 'Varanasi',    lat: 25.3176, lon: 82.9739 },
-    { name: 'Noida',       lat: 28.5355, lon: 77.3910 },
-    { name: 'Prayagraj',   lat: 25.4358, lon: 81.8463 },
-    { name: 'Meerut',      lat: 28.9845, lon: 77.7064 },
-    { name: 'Ghaziabad',   lat: 28.6692, lon: 77.4538 },
-    { name: 'Bareilly',    lat: 28.3670, lon: 79.4304 },
-    { name: 'Gorakhpur',   lat: 26.7606, lon: 83.3732 },
+    { name: 'Lucknow',          lat: 26.8467, lon: 80.9462 },
+    { name: 'Kanpur',           lat: 26.4499, lon: 80.3319 },
+    { name: 'Agra',             lat: 27.1767, lon: 78.0081 },
+    { name: 'Varanasi',         lat: 25.3176, lon: 82.9739 },
+    { name: 'Noida',            lat: 28.5355, lon: 77.3910 },
+    { name: 'Greater Noida',    lat: 28.4744, lon: 77.5040 },
+    { name: 'Prayagraj',        lat: 25.4358, lon: 81.8463 },
+    { name: 'Meerut',           lat: 28.9845, lon: 77.7064 },
+    { name: 'Ghaziabad',        lat: 28.6692, lon: 77.4538 },
+    { name: 'Bareilly',         lat: 28.3670, lon: 79.4304 },
+    { name: 'Gorakhpur',        lat: 26.7606, lon: 83.3732 },
+    { name: 'Amethi',           lat: 26.1542, lon: 81.6938 },
+    { name: 'Aligarh',          lat: 27.8974, lon: 78.0880 },
+    { name: 'Moradabad',        lat: 28.8386, lon: 78.7733 },
+    { name: 'Saharanpur',       lat: 29.9680, lon: 77.5510 },
+    { name: 'Firozabad',        lat: 27.1500, lon: 78.3957 },
+    { name: 'Jhansi',           lat: 25.4484, lon: 78.5685 },
+    { name: 'Muzaffarnagar',    lat: 29.4727, lon: 77.7085 },
+    { name: 'Mathura',          lat: 27.4924, lon: 77.6737 },
+    { name: 'Rampur',           lat: 28.8145, lon: 79.0249 },
+    { name: 'Shahjahanpur',     lat: 27.8833, lon: 79.9052 },
+    { name: 'Farrukhabad',      lat: 27.3881, lon: 79.5796 },
+    { name: 'Sultanpur',        lat: 26.2648, lon: 82.0727 },
+    { name: 'Ayodhya',          lat: 26.7922, lon: 82.1998 },
+    { name: 'Faizabad',         lat: 26.7752, lon: 82.1420 },
+    { name: 'Lakhimpur Kheri',  lat: 27.9474, lon: 80.7812 },
+    { name: 'Sitapur',          lat: 27.5636, lon: 80.6840 },
+    { name: 'Hardoi',           lat: 27.3945, lon: 80.1194 },
+    { name: 'Unnao',            lat: 26.5484, lon: 80.4900 },
+    { name: 'Rae Bareli',       lat: 26.2309, lon: 81.2338 },
+    { name: 'Banda',            lat: 25.4764, lon: 80.3312 },
+    { name: 'Hamirpur',         lat: 25.9479, lon: 80.1504 },
+    { name: 'Chitrakoot',       lat: 25.1833, lon: 80.8833 },
+    { name: 'Mirzapur',         lat: 25.1460, lon: 82.5685 },
+    { name: 'Sonbhadra',        lat: 24.6826, lon: 83.0671 },
+    { name: 'Ballia',           lat: 25.7594, lon: 84.1494 },
+    { name: 'Deoria',           lat: 26.5026, lon: 83.7804 },
+    { name: 'Kushinagar',       lat: 26.7397, lon: 83.8892 },
+    { name: 'Maharajganj',      lat: 27.1303, lon: 83.5612 },
+    { name: 'Basti',            lat: 26.8015, lon: 82.7277 },
+    { name: 'Sant Kabir Nagar', lat: 26.7929, lon: 83.0567 },
+    { name: 'Siddharthnagar',   lat: 27.2954, lon: 83.0660 },
+    { name: 'Gonda',            lat: 27.1330, lon: 81.9583 },
+    { name: 'Bahraich',         lat: 27.5745, lon: 81.5958 },
+    { name: 'Shravasti',        lat: 27.6094, lon: 81.8329 },
+    { name: 'Balrampur',        lat: 27.4258, lon: 82.1751 },
+    { name: 'Azamgarh',         lat: 26.0669, lon: 83.1836 },
+    { name: 'Mau',              lat: 25.9416, lon: 83.5614 },
+    { name: 'Jaunpur',          lat: 25.7464, lon: 82.6837 },
+    { name: 'Ghazipur',         lat: 25.5787, lon: 83.5791 },
+    { name: 'Chandauli',        lat: 25.2702, lon: 83.2697 },
+    { name: 'Bijnor',           lat: 29.3719, lon: 78.1353 },
+    { name: 'Amroha',           lat: 28.9042, lon: 78.4691 },
+    { name: 'Hapur',            lat: 28.7297, lon: 77.7756 },
+    { name: 'Bulandshahr',      lat: 28.4073, lon: 77.8496 },
+    { name: 'Hathras',          lat: 27.6065, lon: 78.0509 },
+    { name: 'Etah',             lat: 27.5594, lon: 78.6673 },
+    { name: 'Kasganj',          lat: 27.8077, lon: 78.6449 },
+    { name: 'Mainpuri',         lat: 27.2333, lon: 79.0261 },
+    { name: 'Etawah',           lat: 26.7724, lon: 79.0199 },
+    { name: 'Auraiya',          lat: 26.4656, lon: 79.5088 },
+    { name: 'Fatehpur',         lat: 25.9290, lon: 80.8133 },
+    { name: 'Kaushambi',        lat: 25.5400, lon: 81.3900 },
+    { name: 'Pratapgarh',       lat: 25.8998, lon: 81.9901 },
+    { name: 'Ambedkar Nagar',   lat: 26.4473, lon: 82.5396 },
+    { name: 'Barabanki',        lat: 26.9401, lon: 81.1974 },
+    { name: 'Pilibhit',         lat: 28.6310, lon: 79.8046 },
+    { name: 'Budaun',           lat: 28.0385, lon: 79.1155 },
+    { name: 'Sambhal',          lat: 28.5900, lon: 78.5700 },
+    { name: 'Kannauj',          lat: 27.0654, lon: 79.9117 },
+    { name: 'Vrindavan',        lat: 27.5794, lon: 77.6962 },
   ],
   'Maharashtra': [
     { name: 'Mumbai',      lat: 19.0760, lon: 72.8777 },
@@ -1157,12 +1353,45 @@ const DISTRICT_CLUSTERS = {
     { name: 'Ratlam',      lat: 23.3315, lon: 75.0367 },
   ],
   'Bihar': [
-    { name: 'Patna',       lat: 25.5941, lon: 85.1376 },
-    { name: 'Gaya',        lat: 24.7955, lon: 84.9994 },
-    { name: 'Bhagalpur',   lat: 25.2425, lon: 86.9842 },
-    { name: 'Muzaffarpur', lat: 26.1197, lon: 85.3910 },
-    { name: 'Darbhanga',   lat: 26.1542, lon: 85.8918 },
-    { name: 'Ara',         lat: 25.5566, lon: 84.6650 },
+    { name: 'Patna',            lat: 25.5941, lon: 85.1376 },
+    { name: 'Gaya',             lat: 24.7955, lon: 84.9994 },
+    { name: 'Bhagalpur',        lat: 25.2425, lon: 86.9842 },
+    { name: 'Muzaffarpur',      lat: 26.1197, lon: 85.3910 },
+    { name: 'Darbhanga',        lat: 26.1542, lon: 85.8918 },
+    { name: 'Ara',              lat: 25.5566, lon: 84.6650 },
+    { name: 'Saran',            lat: 25.9167, lon: 84.7500 },
+    { name: 'Chapra',           lat: 25.7814, lon: 84.7455 },
+    { name: 'Purnia',           lat: 25.7771, lon: 87.4753 },
+    { name: 'Samastipur',       lat: 25.8612, lon: 85.7786 },
+    { name: 'Begusarai',        lat: 25.4182, lon: 86.1272 },
+    { name: 'Motihari',         lat: 26.6506, lon: 84.9178 },
+    { name: 'Sitamarhi',        lat: 26.5921, lon: 85.4860 },
+    { name: 'Madhubani',        lat: 26.3534, lon: 86.0713 },
+    { name: 'Supaul',           lat: 26.1231, lon: 86.6023 },
+    { name: 'Araria',           lat: 26.1476, lon: 87.4518 },
+    { name: 'Kishanganj',       lat: 26.1056, lon: 87.9407 },
+    { name: 'Katihar',          lat: 25.5390, lon: 87.5761 },
+    { name: 'Saharsa',          lat: 25.8770, lon: 86.5990 },
+    { name: 'Madhepura',        lat: 25.9219, lon: 86.7905 },
+    { name: 'Munger',           lat: 25.3746, lon: 86.4735 },
+    { name: 'Jamui',            lat: 24.9248, lon: 86.2253 },
+    { name: 'Nalanda',          lat: 25.1363, lon: 85.4455 },
+    { name: 'Nawada',           lat: 24.8875, lon: 85.5404 },
+    { name: 'Jehanabad',        lat: 25.2108, lon: 84.9913 },
+    { name: 'Aurangabad',       lat: 24.7522, lon: 84.3742 },
+    { name: 'Rohtas',           lat: 24.9873, lon: 84.0320 },
+    { name: 'Buxar',            lat: 25.5641, lon: 83.9768 },
+    { name: 'Kaimur',           lat: 25.0430, lon: 83.5827 },
+    { name: 'Siwan',            lat: 26.2240, lon: 84.3554 },
+    { name: 'Gopalganj',        lat: 26.4660, lon: 84.4338 },
+    { name: 'West Champaran',   lat: 27.0000, lon: 84.4000 },
+    { name: 'East Champaran',   lat: 26.6500, lon: 84.9200 },
+    { name: 'Sheohar',          lat: 26.5197, lon: 85.2971 },
+    { name: 'Vaishali',         lat: 25.7000, lon: 85.2000 },
+    { name: 'Khagaria',         lat: 25.5022, lon: 86.4662 },
+    { name: 'Lakhisarai',       lat: 25.1553, lon: 86.0950 },
+    { name: 'Sheikhpura',       lat: 25.1411, lon: 85.8448 },
+    { name: 'Banka',            lat: 24.8800, lon: 86.9200 },
   ],
   'Andhra Pradesh': [
     { name: 'Vijayawada',  lat: 16.5062, lon: 80.6480 },
@@ -1239,6 +1468,333 @@ const DISTRICT_CLUSTERS = {
     { name: 'Haldwani',    lat: 29.2183, lon: 79.5130 },
     { name: 'Nainital',    lat: 29.3803, lon: 79.4636 },
   ],
+  'Assam': [
+    { name: 'Guwahati',       lat: 26.1445, lon: 91.7362 },
+    { name: 'Dibrugarh',      lat: 27.4728, lon: 94.9120 },
+    { name: 'Jorhat',         lat: 26.7465, lon: 94.2026 },
+    { name: 'Silchar',        lat: 24.8333, lon: 92.7789 },
+    { name: 'Nagaon',         lat: 26.3467, lon: 92.6868 },
+    { name: 'Tinsukia',       lat: 27.4894, lon: 95.3544 },
+    { name: 'Sivsagar',       lat: 26.9837, lon: 94.6392 },
+    { name: 'Lakhimpur',      lat: 27.2346, lon: 94.1015 },
+    { name: 'Dhubri',         lat: 26.0200, lon: 89.9700 },
+    { name: 'Bongaigaon',     lat: 26.4750, lon: 90.5580 },
+    { name: 'Cachar',         lat: 24.8333, lon: 92.8000 },
+    { name: 'Darrang',        lat: 26.4493, lon: 92.0374 },
+    { name: 'Kamrup',         lat: 26.1900, lon: 91.4600 },
+    { name: 'Karbi Anglong',  lat: 26.0894, lon: 93.5222 },
+    { name: 'Sonitpur',       lat: 26.5700, lon: 93.0000 },
+    { name: 'Goalpara',       lat: 26.1700, lon: 90.6200 },
+    { name: 'Hailakandi',     lat: 24.6800, lon: 92.5600 },
+    { name: 'Karimganj',      lat: 24.8700, lon: 92.3500 },
+    { name: 'Kokrajhar',      lat: 26.4000, lon: 90.2700 },
+    { name: 'Morigaon',       lat: 26.2500, lon: 92.3300 },
+    { name: 'Nalbari',        lat: 26.4400, lon: 91.4400 },
+    { name: 'Golaghat',       lat: 26.5200, lon: 93.9700 },
+    { name: 'Biswanath',      lat: 26.7300, lon: 93.1500 },
+    { name: 'Charaideo',      lat: 27.0200, lon: 94.8000 },
+    { name: 'Dima Hasao',     lat: 25.5700, lon: 93.0500 },
+    { name: 'Hojai',          lat: 26.0000, lon: 92.8500 },
+    { name: 'South Salmara',  lat: 25.9800, lon: 89.8700 },
+    { name: 'Baksa',          lat: 26.6700, lon: 91.1000 },
+    { name: 'Chirang',        lat: 26.5000, lon: 90.4700 },
+    { name: 'Udalguri',       lat: 26.7500, lon: 92.1000 },
+    { name: 'Barpeta',        lat: 26.3200, lon: 91.0000 },
+    { name: 'Dhemaji',        lat: 27.4800, lon: 94.5700 },
+    { name: 'Majuli',         lat: 27.0100, lon: 94.2000 },
+  ],
+  'Chhattisgarh': [
+    { name: 'Raipur',         lat: 21.2514, lon: 81.6296 },
+    { name: 'Bhilai',         lat: 21.2090, lon: 81.3780 },
+    { name: 'Bilaspur',       lat: 22.0796, lon: 82.1391 },
+    { name: 'Durg',           lat: 21.1904, lon: 81.2849 },
+    { name: 'Korba',          lat: 22.3595, lon: 82.7501 },
+    { name: 'Rajnandgaon',    lat: 21.0972, lon: 81.0296 },
+    { name: 'Jagdalpur',      lat: 19.0728, lon: 82.0357 },
+    { name: 'Ambikapur',      lat: 23.1194, lon: 83.1972 },
+    { name: 'Raigarh',        lat: 21.8974, lon: 83.3950 },
+    { name: 'Dhamtari',       lat: 20.7080, lon: 81.5490 },
+    { name: 'Kawardha',       lat: 22.0090, lon: 81.2320 },
+    { name: 'Kanker',         lat: 20.2700, lon: 81.4900 },
+    { name: 'Kondagaon',      lat: 19.5940, lon: 81.6640 },
+    { name: 'Narayanpur',     lat: 19.7200, lon: 81.2400 },
+    { name: 'Bijapur',        lat: 18.8200, lon: 80.8100 },
+    { name: 'Sukma',          lat: 18.3800, lon: 81.6600 },
+    { name: 'Dantewada',      lat: 18.8900, lon: 81.3500 },
+    { name: 'Gariaband',      lat: 20.6300, lon: 82.0600 },
+    { name: 'Balod',          lat: 20.7300, lon: 81.2000 },
+    { name: 'Baloda Bazar',   lat: 21.6600, lon: 82.1600 },
+    { name: 'Bemetara',       lat: 21.7200, lon: 81.5300 },
+    { name: 'Surajpur',       lat: 23.2200, lon: 82.8600 },
+    { name: 'Balrampur',      lat: 23.1200, lon: 83.6000 },
+    { name: 'Jashpur',        lat: 22.8900, lon: 84.1500 },
+    { name: 'Korea',          lat: 23.3000, lon: 82.7000 },
+    { name: 'Mungeli',        lat: 22.0600, lon: 81.6800 },
+    { name: 'Gaurela-Pendra', lat: 22.7400, lon: 81.7900 },
+    { name: 'Manendragarh',   lat: 23.2100, lon: 82.2200 },
+    { name: 'Khairagarh',     lat: 21.4200, lon: 80.9800 },
+    { name: 'Mohla-Manpur',   lat: 21.4000, lon: 80.8600 },
+    { name: 'Sakti',          lat: 21.9700, lon: 82.9600 },
+    { name: 'Sarangarh',      lat: 21.5900, lon: 83.0800 },
+  ],
+  'Jharkhand': [
+    { name: 'Ranchi',         lat: 23.3441, lon: 85.3096 },
+    { name: 'Jamshedpur',     lat: 22.8046, lon: 86.2029 },
+    { name: 'Dhanbad',        lat: 23.7957, lon: 86.4304 },
+    { name: 'Bokaro',         lat: 23.6693, lon: 86.1511 },
+    { name: 'Deoghar',        lat: 24.4853, lon: 86.6946 },
+    { name: 'Hazaribagh',     lat: 23.9925, lon: 85.3611 },
+    { name: 'Giridih',        lat: 24.1912, lon: 86.3063 },
+    { name: 'Ramgarh',        lat: 23.6300, lon: 85.5200 },
+    { name: 'Palamu',         lat: 24.0290, lon: 84.0740 },
+    { name: 'Garhwa',         lat: 24.1700, lon: 83.8100 },
+    { name: 'Lohardaga',      lat: 23.4400, lon: 84.6800 },
+    { name: 'Gumla',          lat: 23.0400, lon: 84.5400 },
+    { name: 'Simdega',        lat: 22.6100, lon: 84.5100 },
+    { name: 'West Singhbhum', lat: 22.5700, lon: 85.8300 },
+    { name: 'Saraikela',      lat: 22.7000, lon: 85.9400 },
+    { name: 'East Singhbhum', lat: 22.7700, lon: 86.1700 },
+    { name: 'Dumka',          lat: 24.2700, lon: 87.2500 },
+    { name: 'Jamtara',        lat: 23.9600, lon: 86.8000 },
+    { name: 'Godda',          lat: 24.8300, lon: 87.2100 },
+    { name: 'Sahibganj',      lat: 25.2500, lon: 87.6300 },
+    { name: 'Pakur',          lat: 24.6400, lon: 87.8400 },
+    { name: 'Koderma',        lat: 24.4600, lon: 85.5900 },
+    { name: 'Chatra',         lat: 24.2000, lon: 84.8700 },
+    { name: 'Khunti',         lat: 23.0700, lon: 85.2800 },
+  ],
+  'Odisha': [
+    { name: 'Bhubaneswar',    lat: 20.2961, lon: 85.8245 },
+    { name: 'Cuttack',        lat: 20.4625, lon: 85.8830 },
+    { name: 'Rourkela',       lat: 22.2604, lon: 84.8536 },
+    { name: 'Berhampur',      lat: 19.3150, lon: 84.7941 },
+    { name: 'Sambalpur',      lat: 21.4669, lon: 83.9812 },
+    { name: 'Puri',           lat: 19.8135, lon: 85.8312 },
+    { name: 'Balasore',       lat: 21.4934, lon: 86.9336 },
+    { name: 'Baripada',       lat: 21.9324, lon: 86.7222 },
+    { name: 'Bhadrak',        lat: 21.0546, lon: 86.4993 },
+    { name: 'Koraput',        lat: 18.8138, lon: 82.7136 },
+    { name: 'Jharsuguda',     lat: 21.8565, lon: 84.0062 },
+    { name: 'Angul',          lat: 20.8357, lon: 85.1012 },
+    { name: 'Dhenkanal',      lat: 20.6624, lon: 85.5980 },
+    { name: 'Kendrapara',     lat: 20.5013, lon: 86.4200 },
+    { name: 'Jagatsinghpur',  lat: 20.2556, lon: 86.1697 },
+    { name: 'Jajpur',         lat: 20.8467, lon: 86.3354 },
+    { name: 'Sundargarh',     lat: 22.1164, lon: 84.0390 },
+    { name: 'Keonjhar',       lat: 21.6287, lon: 85.5816 },
+    { name: 'Mayurbhanj',     lat: 21.9324, lon: 86.7222 },
+    { name: 'Nayagarh',       lat: 20.1280, lon: 85.0960 },
+    { name: 'Khurda',         lat: 20.1825, lon: 85.6070 },
+    { name: 'Ganjam',         lat: 19.3878, lon: 84.7478 },
+    { name: 'Gajapati',       lat: 18.9990, lon: 84.2310 },
+    { name: 'Kandhamal',      lat: 20.1060, lon: 83.1680 },
+    { name: 'Kalahandi',      lat: 19.9080, lon: 83.1680 },
+    { name: 'Nuapada',        lat: 20.7760, lon: 82.5400 },
+    { name: 'Bargarh',        lat: 21.3320, lon: 83.6200 },
+    { name: 'Bolangir',       lat: 20.7018, lon: 83.4842 },
+    { name: 'Subarnapur',     lat: 20.8300, lon: 83.9000 },
+    { name: 'Nabarangpur',    lat: 19.2300, lon: 82.5500 },
+    { name: 'Malkangiri',     lat: 18.3500, lon: 81.8900 },
+    { name: 'Rayagada',       lat: 19.1700, lon: 83.4200 },
+    { name: 'Boudh',          lat: 20.8400, lon: 84.3200 },
+    { name: 'Debagarh',       lat: 21.5400, lon: 84.7300 },
+  ],
+  'Uttarakhand': [
+    { name: 'Dehradun',       lat: 30.3165, lon: 78.0322 },
+    { name: 'Haridwar',       lat: 29.9457, lon: 78.1642 },
+    { name: 'Roorkee',        lat: 29.8543, lon: 77.8880 },
+    { name: 'Haldwani',       lat: 29.2183, lon: 79.5130 },
+    { name: 'Nainital',       lat: 29.3803, lon: 79.4636 },
+    { name: 'Rishikesh',      lat: 30.0869, lon: 78.2676 },
+    { name: 'Mussoorie',      lat: 30.4598, lon: 78.0644 },
+    { name: 'Almora',         lat: 29.5972, lon: 79.6591 },
+    { name: 'Pithoragarh',    lat: 29.5819, lon: 80.2181 },
+    { name: 'Champawat',      lat: 29.3330, lon: 80.0900 },
+    { name: 'Bageshwar',      lat: 29.8378, lon: 79.7707 },
+    { name: 'Chamoli',        lat: 30.4050, lon: 79.3210 },
+    { name: 'Rudraprayag',    lat: 30.2854, lon: 78.9806 },
+    { name: 'Tehri Garhwal',  lat: 30.3781, lon: 78.4814 },
+    { name: 'Pauri Garhwal',  lat: 29.8800, lon: 78.8000 },
+    { name: 'Uttarkashi',     lat: 30.7268, lon: 78.4354 },
+    { name: 'Udham Singh Nagar', lat: 28.9855, lon: 79.5081 },
+  ],
+  'Himachal Pradesh': [
+    { name: 'Shimla',         lat: 31.1048, lon: 77.1734 },
+    { name: 'Dharamshala',    lat: 32.2190, lon: 76.3234 },
+    { name: 'Mandi',          lat: 31.7090, lon: 76.9320 },
+    { name: 'Solan',          lat: 30.9045, lon: 77.0967 },
+    { name: 'Kullu',          lat: 31.9578, lon: 77.1095 },
+    { name: 'Hamirpur',       lat: 31.6862, lon: 76.5212 },
+    { name: 'Una',            lat: 31.4684, lon: 76.2700 },
+    { name: 'Bilaspur',       lat: 31.3408, lon: 76.7583 },
+    { name: 'Chamba',         lat: 32.5531, lon: 76.1262 },
+    { name: 'Kinnaur',        lat: 31.5900, lon: 78.3700 },
+    { name: 'Lahaul Spiti',   lat: 32.5100, lon: 77.7000 },
+    { name: 'Kangra',         lat: 32.0998, lon: 76.2691 },
+    { name: 'Sirmaur',        lat: 30.5600, lon: 77.4600 },
+  ],
+  'Jammu & Kashmir': [
+    { name: 'Srinagar',       lat: 34.0837, lon: 74.7973 },
+    { name: 'Jammu',          lat: 32.7266, lon: 74.8570 },
+    { name: 'Anantnag',       lat: 33.7310, lon: 75.1500 },
+    { name: 'Baramulla',      lat: 34.2090, lon: 74.3443 },
+    { name: 'Pulwama',        lat: 33.8745, lon: 74.8950 },
+    { name: 'Kupwara',        lat: 34.5256, lon: 74.2536 },
+    { name: 'Shopian',        lat: 33.7150, lon: 74.8340 },
+    { name: 'Kulgam',         lat: 33.6440, lon: 75.0180 },
+    { name: 'Bandipora',      lat: 34.4160, lon: 74.6430 },
+    { name: 'Ganderbal',      lat: 34.2268, lon: 74.7763 },
+    { name: 'Budgam',         lat: 33.9300, lon: 74.7200 },
+    { name: 'Kathua',         lat: 32.3826, lon: 75.5170 },
+    { name: 'Udhampur',       lat: 32.9160, lon: 75.1418 },
+    { name: 'Reasi',          lat: 33.0800, lon: 74.8300 },
+    { name: 'Rajouri',        lat: 33.3770, lon: 74.3080 },
+    { name: 'Poonch',         lat: 33.7730, lon: 74.0930 },
+    { name: 'Doda',           lat: 33.1479, lon: 75.5472 },
+    { name: 'Kishtwar',       lat: 33.3100, lon: 75.7600 },
+    { name: 'Ramban',         lat: 33.2395, lon: 75.2400 },
+    { name: 'Kargil',         lat: 34.5540, lon: 76.1240 },
+    { name: 'Leh',            lat: 34.1526, lon: 77.5770 },
+    { name: 'Samba',          lat: 32.5700, lon: 75.1200 },
+  ],
+  'Kerala': [
+    { name: 'Thiruvananthapuram', lat: 8.5241,  lon: 76.9366 },
+    { name: 'Kochi',          lat: 9.9312,  lon: 76.2673 },
+    { name: 'Kozhikode',      lat: 11.2588, lon: 75.7804 },
+    { name: 'Thrissur',       lat: 10.5276, lon: 76.2144 },
+    { name: 'Kollam',         lat: 8.8932,  lon: 76.6141 },
+    { name: 'Alappuzha',      lat: 9.4981,  lon: 76.3388 },
+    { name: 'Kannur',         lat: 11.8745, lon: 75.3704 },
+    { name: 'Malappuram',     lat: 11.0730, lon: 76.0740 },
+    { name: 'Palakkad',       lat: 10.7867, lon: 76.6548 },
+    { name: 'Kasaragod',      lat: 12.4996, lon: 74.9869 },
+    { name: 'Pathanamthitta', lat: 9.2648,  lon: 76.7870 },
+    { name: 'Idukki',         lat: 9.8498,  lon: 77.0048 },
+    { name: 'Kottayam',       lat: 9.5916,  lon: 76.5222 },
+    { name: 'Ernakulam',      lat: 9.9312,  lon: 76.2673 },
+    { name: 'Wayanad',        lat: 11.6854, lon: 76.1320 },
+  ],
+  'Goa': [
+    { name: 'Panaji',         lat: 15.4909, lon: 73.8278 },
+    { name: 'Margao',         lat: 15.2832, lon: 73.9862 },
+    { name: 'Vasco da Gama',  lat: 15.3983, lon: 73.8114 },
+    { name: 'Mapusa',         lat: 15.5938, lon: 73.8086 },
+    { name: 'Ponda',          lat: 15.4014, lon: 74.0110 },
+    { name: 'North Goa',      lat: 15.5490, lon: 73.8200 },
+    { name: 'South Goa',      lat: 15.1780, lon: 74.0200 },
+  ],
+  'Tripura': [
+    { name: 'Agartala',       lat: 23.8315, lon: 91.2868 },
+    { name: 'Dharmanagar',    lat: 24.3672, lon: 92.1773 },
+    { name: 'Udaipur',        lat: 23.5312, lon: 91.4887 },
+    { name: 'Kailasahar',     lat: 24.3300, lon: 92.0100 },
+    { name: 'Ambassa',        lat: 23.9200, lon: 91.8500 },
+    { name: 'West Tripura',   lat: 23.8315, lon: 91.2868 },
+    { name: 'North Tripura',  lat: 24.1400, lon: 92.0100 },
+    { name: 'South Tripura',  lat: 23.2500, lon: 91.5100 },
+    { name: 'Dhalai',         lat: 24.0800, lon: 91.8500 },
+    { name: 'Sipahijala',     lat: 23.6800, lon: 91.3600 },
+    { name: 'Gomati',         lat: 23.5200, lon: 91.7200 },
+    { name: 'Unakoti',        lat: 24.2500, lon: 92.1000 },
+    { name: 'Khowai',         lat: 24.0600, lon: 91.5900 },
+    { name: 'Sepahijala',     lat: 23.6800, lon: 91.3600 },
+  ],
+  'Meghalaya': [
+    { name: 'Shillong',       lat: 25.5788, lon: 91.8933 },
+    { name: 'Tura',           lat: 25.5142, lon: 90.2174 },
+    { name: 'Jowai',          lat: 25.4500, lon: 92.2000 },
+    { name: 'East Khasi Hills',lat:25.5788, lon: 91.8933 },
+    { name: 'West Khasi Hills',lat:25.4400, lon: 91.0500 },
+    { name: 'Ri Bhoi',        lat: 25.8700, lon: 91.8500 },
+    { name: 'Jaintia Hills',  lat: 25.4300, lon: 92.3200 },
+    { name: 'East Garo Hills',lat: 25.5100, lon: 90.6400 },
+    { name: 'West Garo Hills',lat: 25.5142, lon: 90.2174 },
+    { name: 'South Garo Hills',lat:25.1200, lon: 90.4200 },
+    { name: 'East Jaintia Hills',lat:25.3400,lon:92.5500},
+    { name: 'North Garo Hills',lat:25.7200, lon: 90.2700 },
+  ],
+  'Manipur': [
+    { name: 'Imphal',         lat: 24.8170, lon: 93.9368 },
+    { name: 'Thoubal',        lat: 24.6300, lon: 93.9900 },
+    { name: 'Bishnupur',      lat: 24.6200, lon: 93.7700 },
+    { name: 'Churachandpur', lat: 24.3300,  lon: 93.6700 },
+    { name: 'Senapati',       lat: 25.2700, lon: 94.0200 },
+    { name: 'Ukhrul',         lat: 25.1000, lon: 94.3700 },
+    { name: 'Chandel',        lat: 24.4100, lon: 94.1700 },
+    { name: 'Tamenglong',     lat: 24.9800, lon: 93.5100 },
+    { name: 'Jiribam',        lat: 24.8000, lon: 93.1200 },
+    { name: 'Kakching',       lat: 24.4800, lon: 94.0200 },
+    { name: 'Kangpokpi',      lat: 25.1500, lon: 93.9700 },
+    { name: 'Pherzawl',       lat: 24.2600, lon: 93.4800 },
+    { name: 'Tengnoupal',     lat: 24.1700, lon: 94.0800 },
+    { name: 'Kamjong',        lat: 24.9700, lon: 94.5600 },
+    { name: 'Noney',          lat: 24.9400, lon: 93.7100 },
+    { name: 'Imphal East',    lat: 24.8100, lon: 93.9800 },
+    { name: 'Imphal West',    lat: 24.8200, lon: 93.9100 },
+  ],
+  'Nagaland': [
+    { name: 'Kohima',         lat: 25.6701, lon: 94.1077 },
+    { name: 'Dimapur',        lat: 25.9044, lon: 93.7242 },
+    { name: 'Mokokchung',     lat: 26.3272, lon: 94.5191 },
+    { name: 'Tuensang',       lat: 26.2700, lon: 94.8200 },
+    { name: 'Wokha',          lat: 26.1018, lon: 94.2640 },
+    { name: 'Zunheboto',      lat: 25.9200, lon: 94.5200 },
+    { name: 'Phek',           lat: 25.6600, lon: 94.4700 },
+    { name: 'Kiphire',        lat: 25.9200, lon: 94.9900 },
+    { name: 'Longleng',       lat: 26.5300, lon: 94.7500 },
+    { name: 'Peren',          lat: 25.5600, lon: 93.7300 },
+    { name: 'Mon',            lat: 26.7200, lon: 94.9800 },
+    { name: 'Noklak',         lat: 26.2700, lon: 95.0300 },
+  ],
+  'Mizoram': [
+    { name: 'Aizawl',         lat: 23.7271, lon: 92.7176 },
+    { name: 'Lunglei',        lat: 22.8771, lon: 92.7374 },
+    { name: 'Saiha',          lat: 22.4900, lon: 92.9800 },
+    { name: 'Champhai',       lat: 23.4500, lon: 93.3300 },
+    { name: 'Kolasib',        lat: 24.2300, lon: 92.6800 },
+    { name: 'Serchhip',       lat: 23.2900, lon: 92.8300 },
+    { name: 'Lawngtlai',      lat: 22.5300, lon: 92.8900 },
+    { name: 'Mamit',          lat: 23.9200, lon: 92.4900 },
+    { name: 'Hnahthial',      lat: 22.9800, lon: 92.7400 },
+    { name: 'Khawzawl',       lat: 23.6800, lon: 93.1200 },
+    { name: 'Saitual',        lat: 23.7200, lon: 92.8900 },
+  ],
+  'Arunachal Pradesh': [
+    { name: 'Itanagar',       lat: 27.0844, lon: 93.6053 },
+    { name: 'Naharlagun',     lat: 27.1046, lon: 93.6954 },
+    { name: 'Pasighat',       lat: 28.0673, lon: 95.3255 },
+    { name: 'Tezpur',         lat: 26.6300, lon: 92.7900 },
+    { name: 'Ziro',           lat: 27.5800, lon: 93.8400 },
+    { name: 'Along',          lat: 28.1600, lon: 94.8000 },
+    { name: 'Bomdila',        lat: 27.2700, lon: 92.4200 },
+    { name: 'Tezu',           lat: 27.9200, lon: 96.1700 },
+    { name: 'Changlang',      lat: 27.1300, lon: 95.7300 },
+    { name: 'Tawang',         lat: 27.5860, lon: 91.8588 },
+    { name: 'Tirap',          lat: 27.0200, lon: 95.5400 },
+    { name: 'Lohit',          lat: 28.0900, lon: 95.9000 },
+    { name: 'Dibang Valley',  lat: 28.6500, lon: 95.5000 },
+    { name: 'Papum Pare',     lat: 27.1700, lon: 93.5800 },
+    { name: 'Kamle',          lat: 27.6100, lon: 93.6000 },
+    { name: 'Kra Daadi',      lat: 28.0100, lon: 93.9600 },
+    { name: 'Pakke Kessang',  lat: 27.1600, lon: 93.8700 },
+    { name: 'Lower Subansiri',lat: 27.4600, lon: 93.8300 },
+    { name: 'Upper Subansiri',lat: 28.3500, lon: 94.1700 },
+    { name: 'East Kameng',    lat: 27.0900, lon: 92.7500 },
+    { name: 'West Kameng',    lat: 27.2700, lon: 92.5400 },
+  ],
+  'Sikkim': [
+    { name: 'Gangtok',        lat: 27.3314, lon: 88.6138 },
+    { name: 'Namchi',         lat: 27.1666, lon: 88.3666 },
+    { name: 'Gyalshing',      lat: 27.2800, lon: 88.2600 },
+    { name: 'Mangan',         lat: 27.5100, lon: 88.5200 },
+    { name: 'Pakyong',        lat: 27.2600, lon: 88.6000 },
+    { name: 'Soreng',         lat: 27.2300, lon: 88.2400 },
+    { name: 'East Sikkim',    lat: 27.3300, lon: 88.6100 },
+    { name: 'West Sikkim',    lat: 27.2800, lon: 88.2600 },
+    { name: 'North Sikkim',   lat: 27.7200, lon: 88.4700 },
+    { name: 'South Sikkim',   lat: 27.1500, lon: 88.4800 },
+  ],
+
 };
 
 function aqiColor(aqi) {
@@ -1353,7 +1909,9 @@ const IQAirQuota = {
 // In-memory cache is wiped on every page reload, wasting IQAir quota.
 // This layer persists across reloads for up to the TTL window.
 const CACHE_TTL = {
-  WAQI:          30 * 60 * 1000,   // 30 min  — real-time ground station
+  WAQI:        30 * 60 * 1000,
+  WAQISearch:  30 * 60 * 1000,   // same freshness as WAQI
+  NASAPOWER:   6 * 60 * 60 * 1000, // 6h — MERRA-2 only updates once daily
   IQAir:         60 * 60 * 1000,   // 60 min  — expensive; don't waste calls
   GoogleAQ:      45 * 60 * 1000,   // 45 min  — 500m model, updates hourly
   OpenMeteo:     45 * 60 * 1000,   // 45 min  — model updates ~hourly
@@ -1361,7 +1919,7 @@ const CACHE_TTL = {
   DEFAULT:       30 * 60 * 1000,
 };
 const CACHE_MAX_AGE  = 2 * 60 * 60 * 1000; // 2 h — never serve data older than this
-const CACHE_LS_KEY   = 'aqiCache_v4';
+const CACHE_LS_KEY   = 'aeromatrics_cache_v4';
 
 function cacheTTL(source) {
   for (const [k, v] of Object.entries(CACHE_TTL)) {
@@ -1998,10 +2556,12 @@ const WCF = {
   CONF_THRESHOLD : 30,
   AGREE_BAND     : 45,  // wider now that UAQI rescaling reduces artificial divergence
   BASE_SCORES: {
-    IQAir    : 80,  // physical station with proximity check
-    GoogleAQ : 78,  // coordinate-exact 500m India CPCB model — very reliable
-    WAQI     : 60,  // bounds-blended: higher than before since we IDW multiple stations
-    OpenMeteo: 50,  // CAMS satellite model
+    IQAir      : 80,  // physical station with proximity check
+    GoogleAQ   : 78,  // coordinate-exact 500m India CPCB model
+    WAQI       : 60,  // bounds-blended: IDW across multiple stations
+    WAQISearch : 52,  // single sensor by name — less spatially verified
+    NASAPOWER  : 48,  // MERRA-2 reanalysis — good physics, ~55km res, 2-day lag
+    OpenMeteo  : 50,  // CAMS satellite model
     'IDW-Interpolated': 28,
   },
 
@@ -2129,7 +2689,7 @@ const WCF = {
   }
 };
 
-async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0, distSpanLon = 0) {
+async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0, distSpanLon = 0, districtName = '') {
   const key = `${lat.toFixed(2)}_${lon.toFixed(2)}`;
 
   // ── Cache read: use source-specific TTL ──────────────────────────────────
@@ -2157,7 +2717,6 @@ async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0
   const fetchPromises = [];
 
   // WAQI via Map/Bounds API — discovers all stations in the area, not just nearest
-  // No longer hardcodes skipped states; dynamically returns null if no stations found
   fetchPromises.push(
     fetchFromWAQIBounds(lat, lon, waqiBoundsRadius).catch(() => null)
   );
@@ -2170,8 +2729,25 @@ async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0
     fetchFromOpenMeteoMultiPoint(lat, lon, distSpanLat, distSpanLon).catch(() => null)
   );
 
+  // NASA POWER (MERRA-2) — independent reanalysis model, better IGP dust physics
+  fetchPromises.push(fetchFromNASAPOWER(lat, lon).catch(() => null));
+
   // ── Await all in parallel ────────────────────────────────────────────────
   const rawResults = await Promise.all(fetchPromises);
+
+  // ── PHASE 1B: WAQI Search fallback — runs AFTER bounds, only if needed ───
+  // Fires only when bounds found zero stations. Uses district name to find
+  // low-cost sensors (SAMOSA etc.) invisible to the bounds API.
+  // Sequential (not parallel) — it's a fallback, not a primary source.
+  let waqiSearchResult = null;
+  const waqiBoundsResult = rawResults[0];
+  const searchName = districtName || stateName;
+
+  if (!waqiBoundsResult && isDistrict && searchName) {
+    waqiSearchResult = await fetchFromWAQISearch(searchName, lat, lon).catch(() => null);
+    if (waqiSearchResult) rawResults.push(waqiSearchResult);
+  }
+
   const validResults = rawResults.filter(r => r && r.aqi > 0);
 
   // ── PHASE 2: Score each result ───────────────────────────────────────────
@@ -2191,7 +2767,7 @@ async function fetchAQI(lat, lon, stateName, isDistrict = false, distSpanLat = 0
   let iqairResult     = null;
 
   const hasAnyCredibleSource = scored.length > 0;
-  const hasGroundStation     = scored.some(c => ['WAQI','IQAir'].includes(c.result.source));
+  const hasGroundStation     = scored.some(c => ['WAQI','WAQISearch','IQAir'].includes(c.result.source));
 
   // Only call IQAir if: no credible source at all AND budget healthy
   const needIQAir = budgetHealthy && !hasAnyCredibleSource;
@@ -2592,12 +3168,106 @@ const STATE_LABEL_POS = {
 };
 
 
+// ── Multi-point state AQI sampler ────────────────────────────────────────────
+// Problem: single centroid fetch is unreliable — UP's centroid (Lucknow) may
+// have no nearby WAQI station and falls back to OpenMeteo model, while Delhi's
+// tiny footprint always hits a real CPCB station. This causes Delhi to show
+// lower AQI than UP even when reality is the opposite.
+//
+// Fix: for large states, sample up to 4 major cities from DISTRICT_CLUSTERS
+// and IDW-average them by population weight. Small/city-states (Delhi, Goa,
+// Sikkim) still use a single point — their size doesn't warrant multi-sampling.
+//
+// WAQI quota: free/unlimited — no concern sampling 4 points per state.
+// Google AQ quota: 1,000/day — capped at 1 call per state (centroid only).
+
+// States small enough that a single centroid is fine
+const SINGLE_POINT_STATES = new Set([
+  'Delhi','Goa','Sikkim','Tripura','Nagaland','Mizoram','Manipur',
+  'Meghalaya','Arunachal Pradesh','Jammu & Kashmir','Himachal Pradesh',
+]);
+
+// Number of sample cities per large state (picked from DISTRICT_CLUSTERS by index spread)
+const STATE_SAMPLE_COUNT = {
+  'Uttar Pradesh'    : 5,   // huge + most polluted — worth 5 samples
+  'Rajasthan'        : 4,
+  'Madhya Pradesh'   : 4,
+  'Maharashtra'      : 4,
+  'Bihar'            : 4,
+  'Gujarat'          : 3,
+  'Karnataka'        : 3,
+  'Andhra Pradesh'   : 3,
+  'Odisha'           : 3,
+  'Tamil Nadu'       : 3,
+  'Telangana'        : 3,
+  'West Bengal'      : 3,
+  'Jharkhand'        : 3,
+  'Chhattisgarh'     : 3,
+  'Assam'            : 3,
+  'Punjab'           : 3,
+  'Haryana'          : 3,
+  'Uttarakhand'      : 3,
+  'Kerala'           : 3,
+};
+
+async function fetchStateAQIMultiPoint(state) {
+  // Single-point states — use centroid directly
+  if (SINGLE_POINT_STATES.has(state.name)) {
+    return fetchAQI(state.lat, state.lon, state.name);
+  }
+
+  const districts = DISTRICT_CLUSTERS[state.name];
+  const sampleN   = STATE_SAMPLE_COUNT[state.name] || 3;
+
+  if (!districts || districts.length === 0) {
+    return fetchAQI(state.lat, state.lon, state.name);
+  }
+
+  // Spread picks across the district list: first, last, and evenly-spaced middle
+  const indices = new Set([0]);
+  if (districts.length > 1) indices.add(districts.length - 1);
+  const step = Math.floor(districts.length / (sampleN - 1));
+  for (let i = 1; i < sampleN - 1; i++) indices.add(Math.min(i * step, districts.length - 1));
+  const picks = [...indices].slice(0, sampleN).map(i => districts[i]);
+
+  // Fetch all sample points in parallel — WAQI only (no Google AQ quota burn)
+  // by using fetchFromWAQIBounds + OpenMeteo for each pick
+  const results = await Promise.all(picks.map(async d => {
+    try {
+      // Use the full fetchAQI pipeline so caching and WCF fusion apply
+      const r = await fetchAQI(d.lat, d.lon, state.name);
+      return r && r.aqi > 0 ? { ...r, lat: d.lat, lon: d.lon } : null;
+    } catch(e) { return null; }
+  }));
+
+  const valid = results.filter(r => r && r.aqi > 0);
+  if (valid.length === 0) return fetchAQI(state.lat, state.lon, state.name);
+  if (valid.length === 1) return valid[0];
+
+  // Simple average (all samples get equal weight — geography, not proximity)
+  const avgAqi = Math.round(valid.reduce((s, r) => s + r.aqi, 0) / valid.length);
+
+  // Carry through the best-quality metadata from the highest-AQI sample
+  // (most polluted city is most representative for health comms)
+  const representative = valid.reduce((a, b) => a.aqi > b.aqi ? a : b);
+
+  console.log(`[StateAQI] ${state.name}: ${valid.length} samples [${valid.map(r=>r.aqi).join(',')}] → avg ${avgAqi}`);
+
+  return {
+    ...representative,
+    aqi:     avgAqi,
+    station: `Multi-point avg (${valid.length} cities)`,
+    source:  representative.source,
+    fusion:  { method: 'STATE_AVG', sources: valid.map(r=>r.source), samples: valid.length },
+  };
+}
+
 async function renderStateMarkers() {
   if (stateLayerGroup) stateLayerGroup.clearLayers();
 
-  // Fetch AQI for all states in parallel
+  // Fetch AQI for all states in parallel using multi-point sampling
   const promises = INDIA_STATES.map(async (s) => {
-    const data = await fetchAQI(s.lat, s.lon, s.name);
+    const data = await fetchStateAQIMultiPoint(s);
     stateAQIData[s.name] = { ...data, color: aqiColor(data.aqi) };
   });
   await Promise.all(promises);
@@ -2806,7 +3476,7 @@ async function renderDistrictMarkers(stateName) {
         const distName = f.properties.district || f.properties.DISTRICT
           || f.properties.NAME_2 || f.properties.name
           || f.properties.NAME || f.properties.dtname || 'Unknown';
-        const data = await fetchAQI(lat, lon, stateName, true, spanLat, spanLon);
+        const data = await fetchAQI(lat, lon, stateName, true, spanLat, spanLon, distName);
         aqiMap[distName] = { ...data, lat, lon };
       } catch(e) {}
     }));
@@ -2821,6 +3491,16 @@ async function renderDistrictMarkers(stateName) {
         const om = await fetchFromOpenMeteoMultiPoint(lat, lon);
         if (om && om.aqi > 0) {
           aqiMap[distName] = { ...distData, ...om, interpolated: false };
+          aqiCache[`${lat.toFixed(2)}_${lon.toFixed(2)}`] = { data: aqiMap[distName], ts: Date.now() };
+          return;
+        }
+      } catch(e) {}
+
+      // B) NASA POWER MERRA-2 — independent model, good for IGP dust events
+      try {
+        const nasa = await fetchFromNASAPOWER(lat, lon);
+        if (nasa && nasa.aqi > 0) {
+          aqiMap[distName] = { ...distData, ...nasa, interpolated: false };
           aqiCache[`${lat.toFixed(2)}_${lon.toFixed(2)}`] = { data: aqiMap[distName], ts: Date.now() };
           return;
         }
@@ -3163,6 +3843,131 @@ function closeSidebarInfo() {
   document.getElementById('selectedInfo').innerHTML =
     '<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text2);text-align:center;margin-top:2rem;">Click any region on the map to see detailed AQI data</div>';
 }
+
+// ══════════════════════════════════════════════════════════════════
+// ── WINDY WIND & POLLUTION VIEWER ────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+
+const WINDY_META = {
+  pm2p5:    { name: 'PM 2.5',    detail: 'Fine particulate matter',             cls: ''  },
+  pm10:     { name: 'PM 10',     detail: 'Coarse particulate matter',           cls: ''  },
+  cosc:     { name: 'CO',        detail: 'Carbon monoxide concentration',        cls: ''  },
+  o3:       { name: 'O₃',        detail: 'Ozone layer concentration',            cls: ''  },
+  no2:      { name: 'NO₂',       detail: 'Nitrogen dioxide · traffic & industry',cls: 'w' },
+  so2:      { name: 'SO₂',       detail: 'Sulphur dioxide · industrial emissions',cls:'w' },
+  dust:     { name: 'DUST',      detail: 'Mineral dust & aerosols',              cls: 'd' },
+  wind:     { name: 'WIND',      detail: 'Wind speed & direction · 10m surface', cls: 'b' },
+  rain:     { name: 'RAIN',      detail: 'Precipitation intensity',              cls: 'b' },
+  temp:     { name: 'TEMP',      detail: 'Surface air temperature · 2m',         cls: 'b' },
+  clouds:   { name: 'CLOUDS',    detail: 'Cloud cover',                          cls: 'b' },
+  snowcover:{ name: 'SNOW',      detail: 'Snow cover depth',                     cls: 'b' },
+};
+
+let _windyOpen = false;
+let _windyLayer = 'pm2p5';
+
+function _windyUrl(overlay) {
+  // India centered (lat 22.5, lon 82), zoom 5 — full India visible
+  return `https://embed.windy.com/embed2.html?lat=22.5&lon=82.0&detailLat=22.5&detailLon=82.0` +
+    `&width=900&height=600&zoom=5&level=surface&overlay=${overlay}` +
+    `&product=ecmwf&menu=&message=true&marker=&calendar=now&pressure=` +
+    `&type=map&location=coordinates&detail=&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`;
+}
+
+function openWindy() {
+  const modal = document.getElementById('windyModal');
+  modal.classList.add('show');
+  // Lazy-load iframe on first open
+  const iframe = document.getElementById('windyIframe');
+  if (!iframe.src || iframe.src === window.location.href) {
+    iframe.src = _windyUrl(_windyLayer);
+  }
+  _windyOpen = true;
+}
+
+function closeWindy() {
+  document.getElementById('windyModal').classList.remove('show');
+  _windyOpen = false;
+}
+
+function setWLayer(btn, overlay) {
+  _windyLayer = overlay;
+
+  // Swap active pill — preserve the color class (w/d/b) from the button's base classes
+  document.querySelectorAll('.w-pill').forEach(p => p.classList.remove('on'));
+  btn.classList.add('on');
+
+  // Reload iframe
+  document.getElementById('windyIframe').src = _windyUrl(overlay);
+
+  // Update legend
+  const meta = WINDY_META[overlay] || { name: overlay.toUpperCase(), detail: '', cls: '' };
+  document.getElementById('wLayerName').textContent   = meta.name;
+  document.getElementById('wLayerDetail').textContent = meta.detail;
+  document.getElementById('windySubtitle').textContent =
+    meta.name + ' · ' + meta.detail + ' · ECMWF forecast model';
+}
+
+// Escape key closes Windy modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _windyOpen) closeWindy();
+});
+
+</script>
+<script>
+
+// ══════════════════════════════════════════════════════════════════
+// ── PWA INSTALL PROMPT HANDLER ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════════
+let _pwaPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();               // stop auto mini-infobar
+  _pwaPrompt = e;
+  // Show the install button inside the map header
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'flex';
+  console.log('[PWA] Install prompt captured — button shown');
+});
+
+function pwaInstall() {
+  if (!_pwaPrompt) return;
+  _pwaPrompt.prompt();
+  _pwaPrompt.userChoice.then(result => {
+    console.log('[PWA] User choice:', result.outcome);
+    if (result.outcome === 'accepted') {
+      const btn = document.getElementById('pwaInstallBtn');
+      if (btn) btn.style.display = 'none';  // hide after install
+    }
+    _pwaPrompt = null;
+  });
+}
+
+// Hide button if app is already installed (standalone mode)
+if (window.matchMedia('(display-mode: standalone)').matches) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('pwaInstallBtn');
+    if (btn) btn.style.display = 'none';
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  const btn = document.getElementById('pwaInstallBtn');
+  if (btn) btn.style.display = 'none';
+  _pwaPrompt = null;
+  console.log('[PWA] Aeromatrics installed successfully');
+});
+
+</script>
+<script>
+  // ── Aeromatrics PWA — Service Worker Registration ──
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[SW] Aeromatrics SW registered', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed', err));
+    });
+  }
 </script>
 </body>
 </html>
