@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════════
+#  .gitignore — Aeromatrics
+#  ⚠  These files contain API keys — NEVER commit them
+# ══════════════════════════════════════════════════════════════════
+
+# API Keys & Credentials
+config.js
+firebase-config.js
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Node (if ever used locally)
+node_modules/
+npm-debug.log*
+
+# Arduino build artifacts
+*.hex
+*.elf
+build/
