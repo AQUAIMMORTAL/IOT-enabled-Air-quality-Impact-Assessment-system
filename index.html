@@ -10,6 +10,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Aeromatrics">
 <link rel="manifest" href="manifest.json">
+<script src="firebase-config.js"></script>
+<script type="module" src="firebase-backend.js"></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Aeromatrics — India Air Quality Monitor</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -600,6 +602,81 @@ main {
   50%       { box-shadow: 0 0 10px 2px rgba(0,229,204,0.3); }
 }
 
+
+/* ── FIREBASE AUTH MODAL ──────────────────────────────────────── */
+#firebaseAuthModal {
+  display: none; position: fixed; inset: 0; z-index: 2000;
+  align-items: center; justify-content: center;
+}
+.fb-modal-backdrop {
+  position: absolute; inset: 0; background: rgba(4,8,12,0.85);
+}
+.fb-modal-box {
+  position: relative; z-index: 1;
+  background: var(--bg2); border: 1px solid var(--border);
+  width: 100%; max-width: 360px; padding: 0;
+  box-shadow: 0 0 40px rgba(0,229,204,0.1);
+}
+.fb-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.9rem 1.2rem; border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 0.8rem; font-weight: 700;
+  color: var(--teal); letter-spacing: 0.15em;
+}
+.fb-modal-close {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); width: 26px; height: 26px;
+  cursor: pointer; font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.fb-modal-close:hover { border-color: var(--danger); color: var(--danger); }
+.fb-modal-body { padding: 1.2rem; display: flex; flex-direction: column; gap: 0.7rem; }
+.fb-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text1); padding: 0.55rem 0.8rem;
+  font-family: var(--mono); font-size: 0.72rem; outline: none;
+  transition: border-color 0.2s; box-sizing: border-box;
+}
+.fb-input:focus { border-color: var(--teal); }
+.fb-input::placeholder { color: var(--text2); }
+.fb-submit-btn {
+  background: var(--teal); border: none; color: #04080c;
+  padding: 0.6rem; font-family: var(--mono); font-size: 0.72rem;
+  font-weight: 700; letter-spacing: 0.12em; cursor: pointer;
+  transition: all 0.2s; width: 100%;
+}
+.fb-submit-btn:hover { background: var(--teal2); }
+.fb-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.fb-error {
+  background: rgba(255,51,68,0.08); border: 1px solid var(--danger);
+  color: var(--danger); padding: 0.45rem 0.7rem;
+  font-family: var(--mono); font-size: 0.62rem;
+}
+.fb-toggle {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.4rem; font-family: var(--mono); font-size: 0.6rem; color: var(--text2);
+}
+.fb-toggle-btn {
+  background: transparent; border: none; color: var(--teal);
+  font-family: var(--mono); font-size: 0.6rem; cursor: pointer;
+  text-decoration: underline; padding: 0;
+}
+
+/* Auth button in header */
+.auth-btn {
+  display: flex; align-items: center; gap: 0.4rem;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); padding: 0.28rem 0.8rem;
+  font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.1em;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+}
+.auth-btn:hover { border-color: var(--teal); color: var(--teal); }
+.auth-user-info {
+  font-family: var(--mono); font-size: 0.58rem; color: var(--teal);
+  max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -742,6 +819,11 @@ main {
     <button class="windy-btn" onclick="openWindy()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
       WIND &amp; POLLUTION
+    </button>
+    <span class="auth-user-info" id="authUserName"></span>
+    <button class="auth-btn" id="authBtn" onclick="AeroModal.openLogin()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      LOGIN
     </button>
     <button id="pwaMainInstallBtn" onclick="pwaInstall()" title="Install Aeromatrics as App">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -3993,6 +4075,27 @@ window.addEventListener('appinstalled', () => {
   });
   _pwaPrompt = null;
   console.log('[PWA] Aeromatrics installed successfully');
+});
+
+</script>
+<script>
+
+// ── Firebase Realtime DB → live sensor sync ───────────────────────
+// Runs after page load — subscribes to NodeMCU live data stream
+window.addEventListener('load', () => {
+  if (typeof AeroRTDB === 'undefined') return;
+  AeroRTDB.subscribeLiveSensor(data => {
+    // Push live Firebase data into the existing dashboard display
+    if (typeof updateDisplay === 'function') {
+      updateDisplay(data.temperature, data.humidity, data.gas);
+    }
+    // Log alert to Firestore if threshold breached
+    if (data.gas >= 400 && typeof AeroFirestore !== 'undefined') {
+      AeroFirestore.logAlert('GAS_THRESHOLD', 'NodeMCU', data.gas,
+        `Gas level ${data.gas}ppm exceeded threshold of 400ppm`);
+    }
+  });
+  console.log('[Aeromatrics] Firebase RTDB live sensor subscribed');
 });
 
 </script>
