@@ -1,16 +1,16 @@
 // ══════════════════════════════════════════════════════════════════
 //  firebase-backend.js — Aeromatrics Firebase Integration
-//  Project: aerometrics-b5c84
-//  Region:  asia-southeast1 (Singapore)
+//  Project: aerometrics-b5c84  |  Region: asia-southeast1
 // ══════════════════════════════════════════════════════════════════
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithEmailAndPassword,
-         createUserWithEmailAndPassword,
-         signOut, onAuthStateChanged }
+         createUserWithEmailAndPassword, signOut,
+         onAuthStateChanged, GoogleAuthProvider,
+         signInWithPopup, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getDatabase, ref, onValue, set, push,
+import { getDatabase, ref, onValue, set,
          serverTimestamp as rtTS }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 import { getFirestore, collection, addDoc, getDocs,
@@ -21,30 +21,38 @@ import { getAnalytics }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js';
 
 // ── Init ─────────────────────────────────────────────────────────
-const app       = initializeApp(FIREBASE_CONFIG);
-const analytics = getAnalytics(app);
-const auth      = getAuth(app);
-const rtdb      = getDatabase(app);
-const db        = getFirestore(app);
+const app        = initializeApp(window.FIREBASE_CONFIG);
+const analytics  = getAnalytics(app);
+const auth       = getAuth(app);
+const rtdb       = getDatabase(app);
+const db         = getFirestore(app);
+const googleProv = new GoogleAuthProvider();
 
 let currentUser = null;
 
-onAuthStateChanged(auth, user => {
+// ── Auth State — drives login page show/hide ──────────────────────
+onAuthStateChanged(auth, async user => {
   currentUser = user;
   if (user) {
     console.log('[Firebase] Signed in:', user.email);
-    AeroAuth.onLogin(user);
+    await AeroAuth._syncProfile(user);
+    // Hide login page, show dashboard
+    if (typeof LoginPage !== 'undefined') LoginPage.hide();
+    AeroUI.updateAuthState(true, user.displayName || user.email);
   } else {
     console.log('[Firebase] Signed out');
-    AeroAuth.onLogout();
+    // Show login page, hide dashboard
+    if (typeof LoginPage !== 'undefined') LoginPage.show();
+    AeroUI.updateAuthState(false);
   }
 });
 
 // ══════════════════════════════════════════════════════════════════
-// ── AUTH ──────────────────────────────────────────────────────────
+// ── AUTH MODULE ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 const AeroAuth = {
 
+  // Email + password login
   async login(email, password) {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -54,16 +62,19 @@ const AeroAuth = {
     }
   },
 
+  // Email + password register
   async register(email, password, displayName) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, 'users', cred.user.uid), {
         email,
-        displayName: displayName || email.split('@')[0],
-        createdAt:   serverTimestamp(),
-        savedLocations:   [],
-        alertThresholds:  { aqi: 150, gas: 300, temperature: 40 },
-        preferences:      { defaultState: 'Uttar Pradesh' },
+        displayName:     displayName || email.split('@')[0],
+        photoURL:        null,
+        provider:        'email',
+        createdAt:       serverTimestamp(),
+        savedLocations:  [],
+        alertThresholds: { aqi: 150, gas: 300, temperature: 40 },
+        preferences:     { defaultState: 'Uttar Pradesh' },
       });
       return { ok: true, user: cred.user };
     } catch (e) {
@@ -71,33 +82,72 @@ const AeroAuth = {
     }
   },
 
+  // Google Sign-In
+  async googleLogin() {
+    try {
+      const result  = await signInWithPopup(auth, googleProv);
+      const user    = result.user;
+      // Create/merge Firestore profile for Google users
+      const userRef = doc(db, 'users', user.uid);
+      const snap    = await getDoc(userRef);
+      if (!snap.exists()) {
+        await setDoc(userRef, {
+          email:           user.email,
+          displayName:     user.displayName || user.email.split('@')[0],
+          photoURL:        user.photoURL || null,
+          provider:        'google',
+          createdAt:       serverTimestamp(),
+          savedLocations:  [],
+          alertThresholds: { aqi: 150, gas: 300, temperature: 40 },
+          preferences:     { defaultState: 'Uttar Pradesh' },
+        });
+      }
+      return { ok: true, user };
+    } catch (e) {
+      if (e.code === 'auth/popup-closed-by-user') return { ok: false, error: '' };
+      return { ok: false, error: this._err(e.code) };
+    }
+  },
+
+  // Password reset email
+  async resetPassword(email) {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: this._err(e.code) };
+    }
+  },
+
+  // Logout
   async logout() {
     await signOut(auth);
   },
 
-  async onLogin(user) {
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    if (snap.exists()) {
-      const p = snap.data();
+  // Sync profile to UI
+  async _syncProfile(user) {
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      const name = snap.exists()
+        ? (snap.data().displayName || user.email)
+        : (user.displayName || user.email);
       const el = document.getElementById('authUserName');
-      if (el) el.textContent = p.displayName || user.email;
-    }
-    AeroUI.updateAuthState(true, user.email);
+      if (el) el.textContent = name;
+    } catch(e) {}
   },
 
-  onLogout() {
-    AeroUI.updateAuthState(false);
-  },
-
+  // Friendly error messages
   _err(code) {
     return ({
-      'auth/user-not-found':     'No account found with this email.',
-      'auth/wrong-password':     'Incorrect password.',
+      'auth/user-not-found':      'No account found with this email.',
+      'auth/wrong-password':      'Incorrect password.',
+      'auth/invalid-credential':  'Incorrect email or password.',
       'auth/email-already-in-use':'Email already registered.',
-      'auth/weak-password':      'Password must be at least 6 characters.',
-      'auth/invalid-email':      'Invalid email address.',
-      'auth/too-many-requests':  'Too many attempts. Try again later.',
-      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/weak-password':       'Password must be at least 6 characters.',
+      'auth/invalid-email':       'Invalid email address.',
+      'auth/too-many-requests':   'Too many attempts. Try again later.',
+      'auth/network-request-failed': 'Network error. Check your connection.',
+      'auth/popup-blocked':       'Popup blocked. Allow popups for this site.',
     })[code] || 'Authentication failed. Try again.';
   },
 };
@@ -106,7 +156,6 @@ const AeroAuth = {
 // ── REALTIME DATABASE — IoT LIVE FEED ────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 const AeroRTDB = {
-
   _unsubs: {},
 
   subscribeLiveSensor(callback) {
@@ -138,12 +187,10 @@ const AeroRTDB = {
   async sendAlertToDevice(type, value) {
     try {
       await set(ref(rtdb, 'alerts/current'), {
-        type, value,
-        timestamp:    rtTS(),
-        acknowledged: false,
+        type, value, timestamp: rtTS(), acknowledged: false,
       });
     } catch (e) {
-      console.warn('[RTDB] Alert send failed:', e.message);
+      console.warn('[RTDB] Alert failed:', e.message);
     }
   },
 
@@ -154,30 +201,26 @@ const AeroRTDB = {
 };
 
 // ══════════════════════════════════════════════════════════════════
-// ── FIRESTORE — AQI HISTORY · ALERTS · USER DATA ─────────────────
+// ── FIRESTORE ─────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 const AeroFirestore = {
-
   _lastPersist: 0,
   PERSIST_GAP:  10 * 60 * 1000,
 
   async saveAQIReading(name, state, lat, lon, aqiData) {
     try {
       await addDoc(collection(db, 'aqi_readings'), {
-        location:  name,
-        state,     lat, lon,
-        aqi:       aqiData.aqi,
-        pm25:      aqiData.pm25 ?? null,
-        pm10:      aqiData.pm10 ?? null,
-        no2:       aqiData.no2  ?? null,
-        source:    aqiData.source ?? '',
-        fusion:    aqiData.fusion ?? null,
+        location: name, state, lat, lon,
+        aqi:      aqiData.aqi,
+        pm25:     aqiData.pm25 ?? null,
+        pm10:     aqiData.pm10 ?? null,
+        no2:      aqiData.no2  ?? null,
+        source:   aqiData.source ?? '',
+        fusion:   aqiData.fusion ?? null,
         timestamp: serverTimestamp(),
-        userId:    currentUser?.uid ?? 'anonymous',
+        userId:   currentUser?.uid ?? 'anonymous',
       });
-    } catch (e) {
-      console.warn('[Firestore] AQI save failed:', e.message);
-    }
+    } catch (e) { console.warn('[Firestore] AQI save failed:', e.message); }
   },
 
   async getAQIHistory(locationName, n = 24) {
@@ -185,15 +228,11 @@ const AeroFirestore = {
       const q = query(
         collection(db, 'aqi_readings'),
         where('location', '==', locationName),
-        orderBy('timestamp', 'desc'),
-        limit(n)
+        orderBy('timestamp', 'desc'), limit(n)
       );
       const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
-    } catch (e) {
-      console.warn('[Firestore] History failed:', e.message);
-      return [];
-    }
+    } catch (e) { return []; }
   },
 
   async logAlert(type, location, value, message) {
@@ -204,23 +243,18 @@ const AeroFirestore = {
         userId:       currentUser?.uid ?? 'anonymous',
         acknowledged: false,
       });
-    } catch (e) {
-      console.warn('[Firestore] Alert log failed:', e.message);
-    }
+    } catch (e) { console.warn('[Firestore] Alert failed:', e.message); }
   },
 
   async getRecentAlerts(n = 20) {
     try {
       const q = query(
         collection(db, 'alerts'),
-        orderBy('timestamp', 'desc'),
-        limit(n)
+        orderBy('timestamp', 'desc'), limit(n)
       );
       const snap = await getDocs(q);
       return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    } catch (e) {
-      return [];
-    }
+    } catch (e) { return []; }
   },
 
   async maybePersistSensor(data) {
@@ -236,15 +270,12 @@ const AeroFirestore = {
         status:      data.status      ?? '',
         timestamp:   serverTimestamp(),
       });
-      console.log('[Firestore] Sensor reading persisted');
-    } catch (e) {
-      console.warn('[Firestore] Sensor persist failed:', e.message);
-    }
+    } catch (e) {}
   },
 
   async saveUserLocation(name, state, lat, lon) {
     if (!currentUser) return;
-    const ref = doc(db, 'users', currentUser.uid);
+    const ref  = doc(db, 'users', currentUser.uid);
     const snap = await getDoc(ref);
     if (!snap.exists()) return;
     const locs = snap.data().savedLocations || [];
@@ -262,110 +293,29 @@ const AeroFirestore = {
 };
 
 // ══════════════════════════════════════════════════════════════════
-// ── UI ────────────────────────────────────────────────────────────
+// ── UI HELPERS ────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════
 const AeroUI = {
-  updateAuthState(loggedIn, email = '') {
+  updateAuthState(loggedIn, nameOrEmail = '') {
     const btn  = document.getElementById('authBtn');
     const info = document.getElementById('authUserName');
     if (!btn) return;
     if (loggedIn) {
       btn.textContent = 'LOGOUT';
       btn.onclick     = () => AeroAuth.logout();
-      if (info) info.textContent = email;
+      if (info) info.textContent = nameOrEmail;
     } else {
       btn.textContent = 'LOGIN';
-      btn.onclick     = () => AeroModal.open('login');
+      btn.onclick     = () => LoginPage.show();
       if (info) info.textContent = '';
     }
   },
 };
 
-// ══════════════════════════════════════════════════════════════════
-// ── AUTH MODAL ────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════
-const AeroModal = {
-  _mode: 'login',
-
-  open(mode = 'login') {
-    this._mode = mode;
-    let m = document.getElementById('firebaseAuthModal');
-    if (!m) {
-      m = document.createElement('div');
-      m.id = 'firebaseAuthModal';
-      m.innerHTML = `
-        <div class="fb-modal-backdrop" onclick="AeroModal.close()"></div>
-        <div class="fb-modal-box">
-          <div class="fb-modal-header">
-            <span id="fbModalTitle">// LOGIN</span>
-            <button class="fb-modal-close" onclick="AeroModal.close()">✕</button>
-          </div>
-          <div class="fb-modal-body">
-            <div id="fbAuthError" class="fb-error" style="display:none"></div>
-            <input id="fbEmail"    type="email"    placeholder="Email address" class="fb-input"/>
-            <input id="fbPassword" type="password" placeholder="Password"      class="fb-input"/>
-            <input id="fbName"     type="text"     placeholder="Display name (register only)" class="fb-input" style="display:none"/>
-            <button id="fbSubmitBtn" class="fb-submit-btn" onclick="AeroModal._submit()">LOGIN</button>
-            <div class="fb-toggle">
-              <span id="fbToggleText">Don't have an account?</span>
-              <button class="fb-toggle-btn" onclick="AeroModal.toggleMode()">Register</button>
-            </div>
-          </div>
-        </div>`;
-      document.body.appendChild(m);
-    }
-    this._refresh();
-    m.style.display = 'flex';
-    document.getElementById('fbEmail').focus();
-  },
-
-  close() {
-    const m = document.getElementById('firebaseAuthModal');
-    if (m) m.style.display = 'none';
-  },
-
-  toggleMode() {
-    this._mode = this._mode === 'login' ? 'register' : 'login';
-    this._refresh();
-  },
-
-  _refresh() {
-    const login = this._mode === 'login';
-    document.getElementById('fbModalTitle').textContent   = login ? '// LOGIN' : '// REGISTER';
-    document.getElementById('fbSubmitBtn').textContent    = login ? 'LOGIN' : 'CREATE ACCOUNT';
-    document.getElementById('fbName').style.display       = login ? 'none' : 'block';
-    document.getElementById('fbToggleText').textContent   = login ? "Don't have an account?" : 'Already registered?';
-    document.querySelector('.fb-toggle-btn').textContent  = login ? 'Register' : 'Login';
-    document.getElementById('fbAuthError').style.display  = 'none';
-  },
-
-  async _submit() {
-    const email = document.getElementById('fbEmail').value.trim();
-    const pass  = document.getElementById('fbPassword').value;
-    const name  = document.getElementById('fbName').value.trim();
-    const btn   = document.getElementById('fbSubmitBtn');
-    const err   = document.getElementById('fbAuthError');
-
-    if (!email || !pass) {
-      err.textContent = 'Please enter email and password.';
-      err.style.display = 'block'; return;
-    }
-
-    btn.textContent = '...'; btn.disabled = true;
-    const res = this._mode === 'login'
-      ? await AeroAuth.login(email, pass)
-      : await AeroAuth.register(email, pass, name);
-    btn.disabled = false; this._refresh();
-
-    if (res.ok) { this.close(); }
-    else { err.textContent = res.error; err.style.display = 'block'; }
-  },
-};
-
-// ── Expose globals so inline onclick handlers work ────────────────
+// ── Expose globals ────────────────────────────────────────────────
 window.AeroAuth      = AeroAuth;
 window.AeroRTDB      = AeroRTDB;
 window.AeroFirestore = AeroFirestore;
-window.AeroModal     = AeroModal;
+window.AeroUI        = AeroUI;
 
-console.log('[Aeromatrics] Firebase backend loaded — project: aerometrics-b5c84');
+console.log('[Aeromatrics] Firebase backend loaded — aerometrics-b5c84');
