@@ -56,76 +56,172 @@ window.FIREBASE_CONFIG = {
 
 /* ── LIGHT THEME ── */
 [data-theme="light"] {
-  --bg:       #edf2f7;
-  --bg2:      #dce6f0;
-  --bg3:      #ccd8e8;
-  --panel:    #f4f8fc;
-  --border:   #9ab4cc;
-  --teal:     #007d70;
-  --teal2:    #006058;
-  --blue:     #005fa3;
-  --warn:     #b56800;
-  --danger:   #c40018;
-  --safe:     #006644;
-  --text:     #0d1e2e;
-  --text2:    #3a5870;
-  --glow-t:   0 0 16px rgba(0,125,112,0.3);
-  --glow-d:   0 0 16px rgba(196,0,24,0.35);
-  --glow-w:   0 0 16px rgba(181,104,0,0.3);
+  --bg:       #e8f4f8;
+  --bg2:      #d0e8f0;
+  --bg3:      #bddaec;
+  --panel:    #f0faff;
+  --border:   #5bbcd8;
+  --teal:     #009980;
+  --teal2:    #007a66;
+  --blue:     #0077cc;
+  --warn:     #e07800;
+  --danger:   #dd0022;
+  --safe:     #008855;
+  --text:     #031824;
+  --text2:    #2a6080;
+  --glow-t:   0 0 18px rgba(0,153,128,0.35);
+  --glow-d:   0 0 18px rgba(221,0,34,0.4);
+  --glow-w:   0 0 18px rgba(224,120,0,0.35);
 }
-[data-theme="light"] body::before { background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px); }
-[data-theme="light"] body::after  { background-image: linear-gradient(rgba(0,155,140,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,155,140,0.04) 1px, transparent 1px); background-size: 40px 40px; }
-[data-theme="light"] header { background: rgba(237,242,247,0.97); border-bottom-color: var(--border); }
-[data-theme="light"] #mapModal { background: rgba(237,242,247,0.98); }
-[data-theme="light"] .map-modal-header { background: var(--bg2); }
-[data-theme="light"] .map-sidebar { background: var(--panel); border-left-color: var(--border); }
-[data-theme="light"] .map-sidebar-header { background: var(--bg2); color: var(--teal); }
-[data-theme="light"] .map-body { background: var(--bg); }
-[data-theme="light"] .map-loading { background: rgba(237,242,247,0.9); }
-[data-theme="light"] .windy-header { background: var(--bg2); }
-[data-theme="light"] #windyModal { background: rgba(237,242,247,0.99); }
-[data-theme="light"] .panel-title { color: var(--text); }
-[data-theme="light"] .logo-text { color: var(--text); }
+
+/* Sky-blue gradient body */
+[data-theme="light"] body {
+  background: linear-gradient(160deg, #d6eff8 0%, #e8f6fa 40%, #dff0f6 100%);
+}
+[data-theme="light"] body::before {
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,120,160,0.025) 2px, rgba(0,120,160,0.025) 4px);
+}
+[data-theme="light"] body::after {
+  background-image: linear-gradient(rgba(0,153,200,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(0,153,200,0.07) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Header */
+[data-theme="light"] header {
+  background: rgba(240,250,255,0.97);
+  border-bottom: 2px solid var(--teal);
+  box-shadow: 0 2px 20px rgba(0,153,128,0.12);
+}
+[data-theme="light"] .logo-text { color: #031824; }
 [data-theme="light"] .logo-text span { color: var(--teal); }
-[data-theme="light"] .log-entry { background: var(--bg3); }
-[data-theme="light"] .chart-panel { background: var(--panel); }
-[data-theme="light"] .log-panel { background: var(--panel); }
-[data-theme="light"] .stat-box { background: var(--panel); }
-[data-theme="light"] .footer-cell { background: var(--panel); color: var(--text2); }
-[data-theme="light"] .gauge-card { background: var(--panel); border-color: var(--border); }
-[data-theme="light"] .status-pill.online { border-color: var(--safe); color: var(--safe); }
-[data-theme="light"] .clock { color: var(--text2); }
-[data-theme="light"] .map-search-input { background: rgba(237,242,247,0.97); color: var(--text); }
-[data-theme="light"] .map-search-btn { background: rgba(237,242,247,0.97); }
-[data-theme="light"] .map-zoom-btn { background: rgba(237,242,247,0.97); }
-[data-theme="light"] .sidebarOpenBtn { background: rgba(237,242,247,0.97); }
-[data-theme="light"] .rank-header { background: var(--bg2); }
-[data-theme="light"] .rank-body { background: var(--bg); }
-[data-theme="light"] .rank-footer { background: var(--bg2); }
-[data-theme="light"] .rank-table tbody tr:hover { background: var(--bg2); }
-[data-theme="light"] .fb-modal-box { background: var(--bg2); }
-[data-theme="light"] .fb-input { background: var(--bg3); color: var(--text); border-color: var(--border); }
-[data-theme="light"] .assist-header { background: var(--bg2); }
-[data-theme="light"] #aeroAssistPanel { background: var(--panel); border-color: var(--border); }
-[data-theme="light"] #loginPage { background: #e8eef6; }
-[data-theme="light"] .auth-left { background: linear-gradient(145deg, #d0daea 0%, #c4d2e6 45%, #ccd8e8 100%); }
-[data-theme="light"] .auth-left::before { background: radial-gradient(circle, rgba(0,155,140,.15) 0%, transparent 70%); }
-[data-theme="light"] .auth-left::after  { background: radial-gradient(circle, rgba(0,109,179,.10) 0%, transparent 70%); }
-[data-theme="light"] .auth-left-grid { background-image: linear-gradient(rgba(0,155,140,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,155,140,0.04) 1px, transparent 1px); background-size: 40px 40px; }
-[data-theme="light"] .auth-hero-title { color: #0d1f30; }
-[data-theme="light"] .auth-hero-sub { color: rgba(26,42,56,.5); }
-[data-theme="light"] .auth-feature { background: rgba(0,155,140,.05); border-color: rgba(0,155,140,.18); }
-[data-theme="light"] .auth-brand-name { color: #0d1f30; }
-[data-theme="light"] .auth-right { background: #eef3fa; border-left-color: rgba(0,155,140,.18); }
-[data-theme="light"] .auth-form-title { color: #0d1f30; }
-[data-theme="light"] .auth-tabs { background: rgba(0,155,140,.04); border-color: rgba(0,155,140,.15); }
-[data-theme="light"] .auth-tab { color: rgba(26,42,56,.4); }
-[data-theme="light"] .auth-input { background: rgba(255,255,255,.7); border-color: rgba(0,155,140,.2); color: #1a2a38; }
-[data-theme="light"] .auth-input:focus { background: #fff; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,155,140,.12); }
-[data-theme="light"] .auth-input::placeholder { color: rgba(26,42,56,.35); }
-[data-theme="light"] .auth-google-btn { background: rgba(255,255,255,.9); border-color: rgba(0,0,0,.12); color: #333; }
-[data-theme="light"] #toggle-text span:first-child { color: rgba(26,42,56,.5) !important; }
-[data-theme="light"] #loginPage .auth-particle { background: rgba(0,155,140,.2); }
+[data-theme="light"] .clock { color: var(--text2); font-weight: 600; }
+[data-theme="light"] .status-pill.online { border-color: var(--safe); color: var(--safe); background: rgba(0,136,85,0.08); }
+[data-theme="light"] .theme-btn { border-color: var(--border); color: var(--text2); }
+[data-theme="light"] .theme-btn:hover { border-color: var(--teal); color: var(--teal); }
+[data-theme="light"] .auth-btn  { border-color: var(--border); color: var(--text2); background: rgba(0,120,180,0.05); }
+[data-theme="light"] .map-btn   { border-color: var(--teal); color: var(--teal); background: rgba(0,153,128,0.06); }
+[data-theme="light"] .map-btn:hover { background: rgba(0,153,128,0.14); box-shadow: var(--glow-t); }
+[data-theme="light"] .windy-btn { border-color: var(--blue); color: var(--blue); background: rgba(0,119,204,0.06); }
+
+/* Stat boxes */
+[data-theme="light"] .stat-box {
+  background: #f0faff;
+  box-shadow: 0 2px 12px rgba(0,120,180,0.1), inset 0 1px 0 rgba(0,153,128,0.1);
+}
+[data-theme="light"] .stat-label { color: var(--text2); }
+[data-theme="light"] .stat-value { color: var(--teal); }
+
+/* Gauge cards */
+[data-theme="light"] .gauge-card {
+  background: #f0faff;
+  border-color: var(--border);
+  box-shadow: 0 4px 16px rgba(0,120,180,0.12), inset 0 1px 0 rgba(0,153,128,0.12);
+}
+[data-theme="light"] .gauge-card.danger  { border-color: rgba(221,0,34,0.5);  box-shadow: 0 4px 16px rgba(221,0,34,0.15); }
+[data-theme="light"] .gauge-card.warning { border-color: rgba(224,120,0,0.5); box-shadow: 0 4px 16px rgba(224,120,0,0.12); }
+[data-theme="light"] .gauge-title { color: var(--text2); }
+[data-theme="light"] .gauge-pin   { color: var(--text2); }
+[data-theme="light"] .gauge-num-val { color: var(--teal); }
+
+/* Chart + log panels */
+[data-theme="light"] .chart-panel {
+  background: #f0faff;
+  border-color: var(--border);
+  box-shadow: 0 4px 16px rgba(0,120,180,0.1);
+}
+[data-theme="light"] .log-panel {
+  background: #f0faff;
+  border-color: var(--border);
+  box-shadow: 0 4px 16px rgba(0,120,180,0.1);
+}
+[data-theme="light"] .panel-title { color: var(--text); }
+[data-theme="light"] .panel-badge { border-color: var(--teal2); color: var(--teal2); }
+[data-theme="light"] .log-entry   { background: rgba(0,120,180,0.05); border-left-color: var(--teal); }
+[data-theme="light"] .log-time    { color: var(--text2); }
+[data-theme="light"] .log-msg     { color: var(--text); }
+
+/* Footer */
+[data-theme="light"] .footer-bar  { border-color: var(--border); }
+[data-theme="light"] .footer-cell { background: #e4f4fb; color: var(--text2); }
+[data-theme="light"] .footer-cell strong { color: var(--teal); }
+
+/* Alert banner */
+[data-theme="light"] #alertBanner { background: var(--danger); }
+
+/* Map modal */
+[data-theme="light"] #mapModal         { background: #e2f2f9; }
+[data-theme="light"] .map-modal-header { background: #d4ecf7; border-bottom: 1px solid var(--border); }
+[data-theme="light"] .map-modal-title  { color: var(--teal); }
+[data-theme="light"] .map-sidebar      { background: #f0faff; border-left: 1px solid var(--border); }
+[data-theme="light"] .map-sidebar-header { background: #d4ecf7; color: var(--teal); border-bottom: 1px solid var(--border); }
+[data-theme="light"] .map-body         { background: #e2f2f9; }
+[data-theme="light"] .map-loading      { background: rgba(224,242,249,0.92); color: var(--teal); }
+[data-theme="light"] .legend-title     { color: var(--text2); }
+[data-theme="light"] .legend-item      { color: var(--text); }
+[data-theme="light"] .map-zoom-hint    { color: var(--text2); }
+[data-theme="light"] .map-search-input { background: #f0faff; color: var(--text); border-color: var(--teal); }
+[data-theme="light"] .map-search-btn   { background: #f0faff; color: var(--teal); border-color: var(--teal); }
+[data-theme="light"] .map-zoom-btn     { background: #f0faff; color: var(--teal); border-color: var(--teal); }
+[data-theme="light"] #sidebarOpenBtn   { background: #f0faff; }
+[data-theme="light"] .sidebar-close-info { color: var(--text2); }
+[data-theme="light"] .sidebar-close-info:hover { color: var(--danger); }
+
+/* Windy modal */
+[data-theme="light"] #windyModal    { background: #e2f2f9; }
+[data-theme="light"] .windy-header  { background: #d4ecf7; border-bottom: 1px solid var(--border); }
+[data-theme="light"] .windy-title   { color: var(--blue); }
+[data-theme="light"] .windy-subtitle{ color: var(--text2); }
+[data-theme="light"] .w-pill        { border-color: var(--border); color: var(--text2); }
+[data-theme="light"] .w-pill:hover  { border-color: var(--blue); color: var(--blue); }
+[data-theme="light"] .windy-close   { border-color: var(--border); color: var(--text2); }
+
+/* Rankings modal */
+[data-theme="light"] #rankingsModal { background: #e2f2f9; }
+[data-theme="light"] .rank-header   { background: #d4ecf7; border-bottom: 1px solid var(--border); }
+[data-theme="light"] .rank-body     { background: #e2f2f9; }
+[data-theme="light"] .rank-footer   { background: #d4ecf7; border-top: 1px solid var(--border); }
+[data-theme="light"] .rank-table    { background: #f0faff; }
+[data-theme="light"] .rank-table thead tr { background: #d4ecf7; }
+[data-theme="light"] .rank-table tbody tr:hover { background: rgba(0,153,128,0.06); }
+[data-theme="light"] .rank-summary  { background: #d4ecf7; border-color: var(--border); }
+[data-theme="light"] .rank-sum-box  { background: #f0faff; border-color: var(--border); }
+
+/* Feedback modal */
+[data-theme="light"] .fb-modal-box { background: #f0faff; border-color: var(--border); box-shadow: 0 8px 32px rgba(0,120,180,0.15); }
+[data-theme="light"] .fb-input { background: #e8f4fb; color: var(--text); border-color: var(--border); }
+[data-theme="light"] .fb-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,153,128,0.12); }
+
+/* AeroAssist panel */
+[data-theme="light"] #aeroAssistPanel  { background: #f0faff; border-color: var(--teal2); box-shadow: 0 0 30px rgba(0,153,128,0.15); }
+[data-theme="light"] .assist-header    { background: linear-gradient(135deg, #d4ecf7 0%, rgba(0,153,128,0.08) 100%); border-bottom: 1px solid var(--border); }
+[data-theme="light"] .assist-messages  { background: #f0faff; }
+[data-theme="light"] .msg.assistant .msg-bubble { background: rgba(0,120,180,0.05); border-color: var(--border); border-left-color: var(--teal); color: var(--text); }
+[data-theme="light"] .msg.user .msg-bubble      { background: rgba(0,119,204,0.08); border-color: rgba(0,119,204,0.3); color: var(--text); }
+[data-theme="light"] .assist-input-row { background: #e8f4fb; border-top: 1px solid var(--border); }
+[data-theme="light"] #assistInput      { color: var(--text); }
+[data-theme="light"] .assist-footer    { background: #d4ecf7; border-top: 1px solid var(--border); color: var(--text2); }
+[data-theme="light"] #aeroAssistFab    { background: #f0faff; border-color: var(--teal); color: var(--teal); }
+
+/* Auth page */
+[data-theme="light"] #loginPage  { background: linear-gradient(160deg, #c8e8f4 0%, #d8f0f8 50%, #cce8f2 100%); }
+[data-theme="light"] .auth-left  { background: linear-gradient(145deg, #bcd8ec 0%, #aacce4 45%, #b8d4ea 100%); }
+[data-theme="light"] .auth-left::before { background: radial-gradient(circle, rgba(0,153,128,.18) 0%, transparent 70%); }
+[data-theme="light"] .auth-left::after  { background: radial-gradient(circle, rgba(0,119,204,.12) 0%, transparent 70%); }
+[data-theme="light"] .auth-left-grid { background-image: linear-gradient(rgba(0,153,128,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,153,128,0.06) 1px, transparent 1px); background-size: 40px 40px; }
+[data-theme="light"] .auth-right { background: #f0faff; border-left: 1px solid var(--border); }
+[data-theme="light"] .auth-hero-title  { color: #031824; }
+[data-theme="light"] .auth-hero-sub    { color: rgba(3,24,36,0.55); }
+[data-theme="light"] .auth-feature     { background: rgba(0,153,128,0.07); border-color: rgba(0,153,128,0.2); }
+[data-theme="light"] .auth-brand-name  { color: #031824; }
+[data-theme="light"] .auth-form-title  { color: #031824; }
+[data-theme="light"] .auth-tabs        { background: rgba(0,153,128,0.06); border-color: rgba(0,153,128,0.2); }
+[data-theme="light"] .auth-tab         { color: rgba(3,24,36,0.45); }
+[data-theme="light"] .auth-input       { background: rgba(255,255,255,0.85); border-color: var(--border); color: var(--text); }
+[data-theme="light"] .auth-input:focus { background: #fff; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,153,128,0.15); }
+[data-theme="light"] .auth-input::placeholder { color: rgba(3,24,36,0.35); }
+[data-theme="light"] .auth-google-btn  { background: #fff; border-color: rgba(0,0,0,0.15); color: #333; }
+[data-theme="light"] #toggle-text span:first-child { color: rgba(3,24,36,0.5) !important; }
+[data-theme="light"] #loginPage .auth-particle { background: rgba(0,153,128,0.25); }
 
 /* theme button */
 .theme-btn {
@@ -3199,7 +3295,9 @@ async function fetchFromWAQIBounds(lat, lon, radiusDeg = 0.5) {
     const latMax = (lat + radiusDeg).toFixed(4);
     const lonMin = (lon - radiusDeg).toFixed(4);
     const lonMax = (lon + radiusDeg).toFixed(4);
-    const url = `https://api.waqi.info/map/bounds/?latlng=${latMin},${lonMin},${latMax},${lonMax}&token=${AQICN_TOKEN}`;
+    const IS_LOCAL = ['localhost','127.0.0.1'].includes(window.location.hostname);
+    const WAQI_BASE = IS_LOCAL ? 'https://corsproxy.io/?' : '';
+    const url = `${WAQI_BASE}https://api.waqi.info/map/bounds/?latlng=${latMin},${lonMin},${latMax},${lonMax}&token=${AQICN_TOKEN}`;
     const res  = await fetch(url);
     const json = await res.json();
     if (json.status !== 'ok' || !Array.isArray(json.data) || json.data.length === 0) return null;
@@ -3391,7 +3489,11 @@ async function fetchFromWAQISearch(districtName, lat, lon) {
 // NASA_TOKEN is reserved for future MODIS NRT integration (3km resolution)
 // via a backend proxy — browser CORS blocks direct LAADS/OPeNDAP access.
 async function fetchFromNASAPOWER(lat, lon) {
-  try {
+  // DISABLED: PM25_DRY / AOD_55 are internal MERRA-2 field names, not valid
+  // NASA POWER API parameters. The API returns 422 for every community (RE, AG, SB).
+  // POWER has no daily PM2.5 endpoint — remove calls to stop the 422 flood.
+  return null;
+  try { // eslint-disable-line no-unreachable
     // Use yesterday's date — MERRA-2 reanalysis has ~2 day lag
     const d     = new Date(Date.now() - 2 * 86400000);
     const year  = d.getUTCFullYear();
@@ -3405,7 +3507,7 @@ async function fetchFromNASAPOWER(lat, lon) {
     //   RH2M     — Relative humidity at 2m (for hygroscopic growth correction)
     const url = `https://power.larc.nasa.gov/api/temporal/daily/point` +
       `?parameters=PM25_DRY,AOD_55,RH2M` +
-      `&community=RE` +
+      `&community=AG` +
       `&longitude=${lon.toFixed(4)}&latitude=${lat.toFixed(4)}` +
       `&start=${dateStr}&end=${dateStr}` +
       `&format=JSON`;
@@ -4372,17 +4474,57 @@ const STATE_SAMPLE_COUNT = {
   'Kerala'           : 3,
 };
 
+// ── IGP MINIMUM FLOORS ───────────────────────────────────────────────────────
+// Indo-Gangetic Plain states have dense industry, agriculture burning, and dust.
+// A reading below these floors almost always means a missing/bad station —
+// not actually clean air. We use median + neighbour context to flag outliers.
+const IGP_AQI_FLOOR = {
+  'Uttar Pradesh' : 90,
+  'Bihar'         : 85,
+  'West Bengal'   : 70,
+  'Jharkhand'     : 70,
+  'Haryana'       : 80,
+  'Punjab'        : 75,
+  'Delhi'         : 100,
+  'Rajasthan'     : 75,
+  'Madhya Pradesh': 70,
+  'Chhattisgarh'  : 65,
+  'Gujarat'       : 70,
+};
+
+// City-level importance weight (population proxy).
+// Higher-weight cities pull the average up when sparse stations report low.
+const CITY_WEIGHT = {
+  // Bihar
+  'Patna': 3, 'Muzaffarpur': 2, 'Gaya': 2, 'Bhagalpur': 2,
+  'Darbhanga': 2, 'Purnia': 1.5, 'Begusarai': 1.5, 'Munger': 1,
+  // UP
+  'Lucknow': 3, 'Kanpur': 3, 'Varanasi': 2.5, 'Agra': 2.5,
+  'Prayagraj': 2, 'Meerut': 2, 'Bareilly': 1.5, 'Aligarh': 1.5,
+  // Others
+  'Kolkata': 3, 'Howrah': 2, 'Jaipur': 3, 'Jodhpur': 2,
+  'Ahmedabad': 3, 'Surat': 2, 'Bhopal': 2.5, 'Indore': 2.5,
+};
+
+function _median(arr) {
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
 async function fetchStateAQIMultiPoint(state) {
   // Single-point states — use centroid directly
   if (SINGLE_POINT_STATES.has(state.name)) {
-    return fetchAQI(state.lat, state.lon, state.name);
+    const r = await fetchAQI(state.lat, state.lon, state.name);
+    return _applyIGPFloor(r, state.name);
   }
 
   const districts = DISTRICT_CLUSTERS[state.name];
   const sampleN   = STATE_SAMPLE_COUNT[state.name] || 3;
 
   if (!districts || districts.length === 0) {
-    return fetchAQI(state.lat, state.lon, state.name);
+    const r = await fetchAQI(state.lat, state.lon, state.name);
+    return _applyIGPFloor(r, state.name);
   }
 
   // Spread picks across the district list: first, last, and evenly-spaced middle
@@ -4392,47 +4534,92 @@ async function fetchStateAQIMultiPoint(state) {
   for (let i = 1; i < sampleN - 1; i++) indices.add(Math.min(i * step, districts.length - 1));
   const picks = [...indices].slice(0, sampleN).map(i => districts[i]);
 
-  // Fetch all sample points in parallel — WAQI only (no Google AQ quota burn)
-  // by using fetchFromWAQIBounds + OpenMeteo for each pick
   const results = await Promise.all(picks.map(async d => {
     try {
-      // Use the full fetchAQI pipeline so caching and WCF fusion apply
       const r = await fetchAQI(d.lat, d.lon, state.name);
-      return r && r.aqi > 0 ? { ...r, lat: d.lat, lon: d.lon } : null;
+      return r && r.aqi > 0 ? { ...r, cityName: d.name, lat: d.lat, lon: d.lon } : null;
     } catch(e) { return null; }
   }));
 
-  const valid = results.filter(r => r && r.aqi > 0);
-  if (valid.length === 0) return fetchAQI(state.lat, state.lon, state.name);
-  if (valid.length === 1) return valid[0];
+  let valid = results.filter(r => r && r.aqi > 0);
+  if (valid.length === 0) {
+    const r = await fetchAQI(state.lat, state.lon, state.name);
+    return _applyIGPFloor(r, state.name);
+  }
+  if (valid.length === 1) return _applyIGPFloor(valid[0], state.name);
 
-  // Simple average (all samples get equal weight — geography, not proximity)
-  const avgAqi = Math.round(valid.reduce((s, r) => s + r.aqi, 0) / valid.length);
+  // ── OUTLIER REJECTION ─────────────────────────────────────────────────────
+  // Drop samples that are less than 40% of the median — these are almost always
+  // stale/mismatched stations (e.g. a rural clean-air station near an IGP city).
+  // Only apply when we have 3+ samples so we don't over-prune.
+  if (valid.length >= 3) {
+    const med = _median(valid.map(r => r.aqi));
+    const floor = IGP_AQI_FLOOR[state.name];
+    const threshold = floor ? Math.max(med * 0.45, floor * 0.6) : med * 0.45;
+    const filtered = valid.filter(r => r.aqi >= threshold);
+    if (filtered.length >= 2) {
+      const dropped = valid.filter(r => r.aqi < threshold);
+      if (dropped.length > 0) {
+        console.warn(`[StateAQI] ${state.name}: dropped ${dropped.length} outlier(s) [${dropped.map(r=>r.aqi).join(',')}] below threshold ${Math.round(threshold)} (median: ${Math.round(med)})`);
+      }
+      valid = filtered;
+    }
+  }
 
-  // Carry through the best-quality metadata from the highest-AQI sample
-  // (most polluted city is most representative for health comms)
+  // ── WEIGHTED AVERAGE (population-proxy weights) ───────────────────────────
+  let totalWeight = 0, weightedSum = 0;
+  for (const r of valid) {
+    const w = CITY_WEIGHT[r.cityName] || 1;
+    weightedSum += r.aqi * w;
+    totalWeight += w;
+  }
+  let avgAqi = Math.round(weightedSum / totalWeight);
+
+  // ── IGP FLOOR ENFORCEMENT ─────────────────────────────────────────────────
+  const floor = IGP_AQI_FLOOR[state.name];
+  if (floor && avgAqi < floor) {
+    console.warn(`[StateAQI] ${state.name}: weighted avg ${avgAqi} below IGP floor ${floor} — clamped to ${floor}`);
+    avgAqi = floor;
+  }
+
   const representative = valid.reduce((a, b) => a.aqi > b.aqi ? a : b);
-
-  console.log(`[StateAQI] ${state.name}: ${valid.length} samples [${valid.map(r=>r.aqi).join(',')}] → avg ${avgAqi}`);
+  console.log(`[StateAQI] ${state.name}: ${valid.length} samples [${valid.map(r=>r.aqi).join(',')}] → weighted avg ${avgAqi}${floor && avgAqi === floor ? ' (floor applied)' : ''}`);
 
   return {
     ...representative,
     aqi:     avgAqi,
     station: `Multi-point avg (${valid.length} cities)`,
     source:  representative.source,
-    fusion:  { method: 'STATE_AVG', sources: valid.map(r=>r.source), samples: valid.length },
+    fusion:  { method: 'STATE_AVG_WEIGHTED', sources: valid.map(r=>r.source), samples: valid.length },
   };
+}
+
+function _applyIGPFloor(result, stateName) {
+  if (!result) return result;
+  const floor = IGP_AQI_FLOOR[stateName];
+  if (floor && result.aqi < floor) {
+    console.warn(`[StateAQI] ${stateName}: single-point AQI ${result.aqi} below IGP floor ${floor} — clamped`);
+    return { ...result, aqi: floor, fusion: { ...result.fusion, igpFloorApplied: true } };
+  }
+  return result;
 }
 
 async function renderStateMarkers() {
   if (stateLayerGroup) stateLayerGroup.clearLayers();
 
-  // Fetch AQI for all states in parallel using multi-point sampling
-  const promises = INDIA_STATES.map(async (s) => {
-    const data = await fetchStateAQIMultiPoint(s);
-    stateAQIData[s.name] = { ...data, color: aqiColor(data.aqi) };
-  });
-  await Promise.all(promises);
+  // Fetch AQI for all states in batches to avoid 429 rate-limit from WAQI
+  const STATE_BATCH_SIZE  = 4;   // max concurrent requests per batch
+  const STATE_BATCH_DELAY = 600; // ms between batches
+  for (let i = 0; i < INDIA_STATES.length; i += STATE_BATCH_SIZE) {
+    const batch = INDIA_STATES.slice(i, i + STATE_BATCH_SIZE);
+    await Promise.all(batch.map(async (s) => {
+      const data = await fetchStateAQIMultiPoint(s);
+      stateAQIData[s.name] = { ...data, color: aqiColor(data.aqi) };
+    }));
+    if (i + STATE_BATCH_SIZE < INDIA_STATES.length) {
+      await new Promise(r => setTimeout(r, STATE_BATCH_DELAY));
+    }
+  }
 
   // Try to load and render GeoJSON choropleth
   const geo = await loadIndiaGeoJSON();
@@ -5524,8 +5711,10 @@ const Rankings = {
     }
     // Batch fetch with concurrency limit to avoid rate limits
     const BATCH = 5;
+    const BATCH_DELAY_MS = 500; // gap between batches to avoid 422s from rapid-fire API calls
     const results = [];
     for (let i = 0; i < districts.length; i += BATCH) {
+      if (i > 0) await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
       const batch = districts.slice(i, i + BATCH);
       const batchResults = await Promise.all(batch.map(async d => {
         try {
