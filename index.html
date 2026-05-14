@@ -372,15 +372,19 @@ header {
 
 /* ── ALERT BANNER ── */
 #alertBanner {
-  display: none;
   position: fixed; top: 60px; left: 0; right: 0; z-index: 99;
   background: var(--danger);
   padding: 0.9rem 2rem;
   display: flex; align-items: center; justify-content: space-between;
-  transform: translateY(-100%);
-  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1);
+  transform: translateY(-110%);
+  visibility: hidden;
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), visibility 0s linear 0.4s;
 }
-#alertBanner.show { transform: translateY(0); }
+#alertBanner.show {
+  transform: translateY(0);
+  visibility: visible;
+  transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), visibility 0s linear 0s;
+}
 .banner-text { font-size: 1rem; font-weight: 700; letter-spacing: 0.08em; color: #fff; }
 .banner-text span { font-family: var(--mono); font-size: 0.85rem; font-weight: 400; margin-left: 1rem; opacity: 0.85; }
 .banner-close {
@@ -549,7 +553,7 @@ main {
 }
 .footer-cell strong { color: var(--teal); }
 
-/* RESPONSIVE */
+/* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .gauges-section, .top-bar { grid-template-columns: 1fr 1fr; }
   .bottom-grid { grid-template-columns: 1fr; }
@@ -557,6 +561,113 @@ main {
 @media (max-width: 580px) {
   .gauges-section, .top-bar { grid-template-columns: 1fr; }
   main { padding: 1rem; }
+}
+
+/* ── MOBILE HEADER ── */
+@media (max-width: 768px) {
+  header {
+    padding: 0 1rem;
+    height: 56px;
+    position: relative;
+  }
+
+  /* Hide all header-right children by default on mobile */
+  .header-right {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 56px; left: 0; right: 0;
+    background: rgba(8,12,16,0.98);
+    border-bottom: 1px solid var(--border);
+    padding: 0.8rem 1rem;
+    gap: 0.6rem;
+    z-index: 200;
+  }
+  .header-right.mobile-open { display: flex; }
+
+  /* Show hamburger button */
+  #mobileMenuBtn { display: flex !important; }
+
+  /* Stack items vertically, full width */
+  .header-right .map-btn,
+  .header-right .windy-btn,
+  .header-right .auth-btn,
+  .header-right .theme-btn,
+  #pwaMainInstallBtn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.5rem 1rem;
+    font-size: 0.72rem;
+  }
+
+  /* Status pill + clock in a row */
+  .header-right .status-pill,
+  .header-right .clock {
+    align-self: center;
+  }
+
+  .auth-user-info {
+    text-align: center;
+    max-width: 100%;
+  }
+}
+
+/* Hamburger button — hidden on desktop */
+#mobileMenuBtn {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  width: 36px; height: 36px;
+  cursor: pointer;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+}
+#mobileMenuBtn:hover { border-color: var(--teal); }
+#mobileMenuBtn span {
+  display: block;
+  width: 16px; height: 1.5px;
+  background: currentColor;
+  transition: all 0.2s;
+}
+
+/* ── MOBILE MAIN CONTENT ── */
+@media (max-width: 480px) {
+  main { padding: 0.75rem; }
+
+  .top-bar { grid-template-columns: 1fr 1fr; }
+
+  .stat-value { font-size: 1.3rem; }
+
+  .gauge-canvas-wrap { width: 150px; height: 92px; }
+  .gauge-num-val { font-size: 1.6rem; }
+
+  .footer-bar { grid-template-columns: 1fr; }
+  .footer-cell { font-size: 0.58rem; }
+
+  .chart-wrap { height: 200px; }
+
+  /* Auth page — stack panels vertically on mobile */
+  #loginPage { flex-direction: column; overflow-y: auto; }
+  .auth-left { display: none; } /* hide branding panel on small screens */
+  .auth-right { width: 100%; min-height: 100vh; }
+}
+
+/* ── AUTH PAGE MOBILE ── */
+@media (max-width: 640px) {
+  #loginPage { flex-direction: column; }
+  .auth-left {
+    flex: 0 0 auto;
+    min-height: 200px;
+    padding: 28px 24px;
+  }
+  .auth-hero-title { font-size: 1.8rem; }
+  .auth-features { grid-template-columns: 1fr; gap: 8px; }
+  .auth-right { flex: 1; }
 }
 
 /* ── WINDY WIND & POLLUTION MODAL ─────────────────────────────── */
@@ -1649,7 +1760,12 @@ main {
     <div class="logo-icon"></div>
     <div class="logo-text">Aero<span>matrics</span></div>
   </div>
-  <div class="header-right">
+  <!-- Hamburger for mobile -->
+  <button id="mobileMenuBtn" onclick="toggleMobileMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <div class="header-right" id="headerRight">
     <button class="map-btn" onclick="openMap()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
       INDIA AQI MAP
@@ -1818,6 +1934,40 @@ function playAlert() {
     osc.stop(audioCtx.currentTime + i * 0.15 + 0.14);
   });
 }
+
+// ── MOBILE MENU ──
+function toggleMobileMenu() {
+  const hr  = document.getElementById('headerRight');
+  const btn = document.getElementById('mobileMenuBtn');
+  const open = hr.classList.toggle('mobile-open');
+  // Animate hamburger → X
+  const spans = btn.querySelectorAll('span');
+  if (open) {
+    spans[0].style.transform = 'translateY(6.5px) rotate(45deg)';
+    spans[1].style.opacity   = '0';
+    spans[2].style.transform = 'translateY(-6.5px) rotate(-45deg)';
+    btn.style.borderColor    = 'var(--teal)';
+    btn.style.color          = 'var(--teal)';
+  } else {
+    spans[0].style.transform = '';
+    spans[1].style.opacity   = '';
+    spans[2].style.transform = '';
+    btn.style.borderColor    = '';
+    btn.style.color          = '';
+  }
+}
+// Close mobile menu on outside click
+document.addEventListener('click', e => {
+  const hr  = document.getElementById('headerRight');
+  const btn = document.getElementById('mobileMenuBtn');
+  if (hr && hr.classList.contains('mobile-open') &&
+      !hr.contains(e.target) && !btn.contains(e.target)) {
+    hr.classList.remove('mobile-open');
+    btn.querySelectorAll('span').forEach(s => { s.style.transform=''; s.style.opacity=''; });
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }
+});
 
 // ── CLOCK ──
 function updateClock() {
