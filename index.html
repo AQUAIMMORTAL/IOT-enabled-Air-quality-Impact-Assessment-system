@@ -34,48 +34,79 @@ window.FIREBASE_CONFIG = {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <style>
 :root {
-  --bg:       #080c10;
-  --bg2:      #0d1318;
-  --bg3:      #111920;
-  --panel:    #0f1a22;
-  --border:   #1a2d3a;
-  --teal:     #00e5cc;
-  --teal2:    #00b8a4;
-  --blue:     #00aaff;
-  --warn:     #ffaa00;
-  --danger:   #ff3344;
-  --safe:     #00e5a0;
-  --text:     #c8dde8;
-  --text2:    #5a7a8a;
+  --bg:       #080f1a;
+  --bg2:      #0d1a2e;
+  --bg3:      #112238;
+  --panel:    #0f2035;
+  --border:   #1e4060;
+  --teal:     #00ffdd;
+  --teal2:    #00d4b8;
+  --blue:     #18b4ff;
+  --warn:     #ffcc00;
+  --danger:   #ff2244;
+  --safe:     #00ffaa;
+  --text:     #e0f0ff;
+  --text2:    #7aabcc;
   --mono:     'Share Tech Mono', monospace;
   --display:  'Rajdhani', sans-serif;
-  --glow-t:   0 0 20px rgba(0,229,204,0.35);
-  --glow-d:   0 0 20px rgba(255,51,68,0.45);
-  --glow-w:   0 0 20px rgba(255,170,0,0.35);
+  --glow-t:   0 0 28px rgba(0,255,221,0.6);
+  --glow-d:   0 0 28px rgba(255,34,68,0.65);
+  --glow-w:   0 0 28px rgba(255,204,0,0.55);
 }
 
 /* ── LIGHT THEME ── */
 [data-theme="light"] {
-  --bg:       #f0f4f8;
-  --bg2:      #e4eaf2;
-  --bg3:      #d8e0ec;
-  --panel:    #eaf0f9;
-  --border:   #b8c8dc;
-  --teal:     #009b8c;
-  --teal2:    #007a6e;
-  --blue:     #006db3;
-  --warn:     #c47800;
-  --danger:   #d4001e;
-  --safe:     #007a60;
-  --text:     #1a2a38;
-  --text2:    #4a6278;
-  --glow-t:   0 0 20px rgba(0,155,140,0.25);
-  --glow-d:   0 0 20px rgba(212,0,30,0.3);
-  --glow-w:   0 0 20px rgba(196,120,0,0.25);
+  --bg:       #edf2f7;
+  --bg2:      #dce6f0;
+  --bg3:      #ccd8e8;
+  --panel:    #f4f8fc;
+  --border:   #9ab4cc;
+  --teal:     #007d70;
+  --teal2:    #006058;
+  --blue:     #005fa3;
+  --warn:     #b56800;
+  --danger:   #c40018;
+  --safe:     #006644;
+  --text:     #0d1e2e;
+  --text2:    #3a5870;
+  --glow-t:   0 0 16px rgba(0,125,112,0.3);
+  --glow-d:   0 0 16px rgba(196,0,24,0.35);
+  --glow-w:   0 0 16px rgba(181,104,0,0.3);
 }
 [data-theme="light"] body::before { background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px); }
 [data-theme="light"] body::after  { background-image: linear-gradient(rgba(0,155,140,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,155,140,0.04) 1px, transparent 1px); background-size: 40px 40px; }
-[data-theme="light"] header { background: rgba(240,244,248,0.96); }
+[data-theme="light"] header { background: rgba(237,242,247,0.97); border-bottom-color: var(--border); }
+[data-theme="light"] #mapModal { background: rgba(237,242,247,0.98); }
+[data-theme="light"] .map-modal-header { background: var(--bg2); }
+[data-theme="light"] .map-sidebar { background: var(--panel); border-left-color: var(--border); }
+[data-theme="light"] .map-sidebar-header { background: var(--bg2); color: var(--teal); }
+[data-theme="light"] .map-body { background: var(--bg); }
+[data-theme="light"] .map-loading { background: rgba(237,242,247,0.9); }
+[data-theme="light"] .windy-header { background: var(--bg2); }
+[data-theme="light"] #windyModal { background: rgba(237,242,247,0.99); }
+[data-theme="light"] .panel-title { color: var(--text); }
+[data-theme="light"] .logo-text { color: var(--text); }
+[data-theme="light"] .logo-text span { color: var(--teal); }
+[data-theme="light"] .log-entry { background: var(--bg3); }
+[data-theme="light"] .chart-panel { background: var(--panel); }
+[data-theme="light"] .log-panel { background: var(--panel); }
+[data-theme="light"] .stat-box { background: var(--panel); }
+[data-theme="light"] .footer-cell { background: var(--panel); color: var(--text2); }
+[data-theme="light"] .gauge-card { background: var(--panel); border-color: var(--border); }
+[data-theme="light"] .status-pill.online { border-color: var(--safe); color: var(--safe); }
+[data-theme="light"] .clock { color: var(--text2); }
+[data-theme="light"] .map-search-input { background: rgba(237,242,247,0.97); color: var(--text); }
+[data-theme="light"] .map-search-btn { background: rgba(237,242,247,0.97); }
+[data-theme="light"] .map-zoom-btn { background: rgba(237,242,247,0.97); }
+[data-theme="light"] .sidebarOpenBtn { background: rgba(237,242,247,0.97); }
+[data-theme="light"] .rank-header { background: var(--bg2); }
+[data-theme="light"] .rank-body { background: var(--bg); }
+[data-theme="light"] .rank-footer { background: var(--bg2); }
+[data-theme="light"] .rank-table tbody tr:hover { background: var(--bg2); }
+[data-theme="light"] .fb-modal-box { background: var(--bg2); }
+[data-theme="light"] .fb-input { background: var(--bg3); color: var(--text); border-color: var(--border); }
+[data-theme="light"] .assist-header { background: var(--bg2); }
+[data-theme="light"] #aeroAssistPanel { background: var(--panel); border-color: var(--border); }
 [data-theme="light"] #loginPage { background: #e8eef6; }
 [data-theme="light"] .auth-left { background: linear-gradient(145deg, #d0daea 0%, #c4d2e6 45%, #ccd8e8 100%); }
 [data-theme="light"] .auth-left::before { background: radial-gradient(circle, rgba(0,155,140,.15) 0%, transparent 70%); }
@@ -130,8 +161,8 @@ body::after {
   content: '';
   position: fixed; inset: 0; z-index: 0;
   background-image:
-    linear-gradient(rgba(0,229,204,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,229,204,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(0,255,221,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,221,0.06) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
 }
@@ -139,8 +170,8 @@ body::after {
 /* ── HEADER ── */
 header {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(8,12,16,0.95);
-  backdrop-filter: blur(12px);
+  background: rgba(8,18,36,0.96);
+  backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   padding: 0 2rem;
   display: flex; align-items: center; justify-content: space-between;
@@ -232,6 +263,13 @@ header {
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow: hidden;
+  transition: width 0.3s ease, opacity 0.3s ease;
+}
+.map-sidebar.hidden {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  border-left: none;
 }
 .map-sidebar-header {
   padding: 1rem 1.2rem 0.8rem;
@@ -428,7 +466,7 @@ main {
 .stat-label { font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text2); }
 .stat-value { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.04em; transition: color 0.4s; }
 .stat-unit  { font-family: var(--mono); font-size: 0.68rem; color: var(--text2); margin-left: 0.3rem; }
-.stat-bar   { height: 2px; background: var(--border); margin-top: 0.5rem; border-radius: 1px; overflow: hidden; }
+.stat-bar   { height: 3px; background: var(--border); margin-top: 0.5rem; border-radius: 1px; overflow: hidden; }
 .stat-bar-fill { height: 100%; border-radius: 1px; transition: width 0.8s ease, background 0.4s; }
 
 /* ── GAUGES ROW ── */
@@ -442,20 +480,23 @@ main {
   background: var(--panel);
   border: 1px solid var(--border);
   padding: 1.5rem;
+  box-shadow: 0 0 18px rgba(0,255,221,0.05), inset 0 1px 0 rgba(0,255,221,0.08);
   display: flex; flex-direction: column; align-items: center;
   position: relative; overflow: hidden;
   transition: border-color 0.4s, box-shadow 0.4s;
 }
 .gauge-card::before {
   content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
   background: var(--teal);
   transition: background 0.4s;
 }
 .gauge-card.warning::before { background: var(--warn); }
 .gauge-card.danger::before  { background: var(--danger); }
-.gauge-card.danger { border-color: rgba(255,51,68,0.4); box-shadow: var(--glow-d); }
-.gauge-card.warning{ border-color: rgba(255,170,0,0.4); box-shadow: var(--glow-w); }
+.gauge-card.danger { border-color: rgba(255,34,68,0.5); box-shadow: var(--glow-d); }
+.gauge-card.warning{ border-color: rgba(255,187,0,0.5); box-shadow: var(--glow-w); }
+[data-theme="light"] .gauge-card.danger  { border-color: rgba(196,0,24,0.5); }
+[data-theme="light"] .gauge-card.warning { border-color: rgba(181,104,0,0.5); }
 
 .gauge-title { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text2); margin-bottom: 1rem; }
 .gauge-canvas-wrap { position: relative; width: 180px; height: 110px; }
@@ -485,6 +526,7 @@ main {
 .chart-panel {
   background: var(--panel);
   border: 1px solid var(--border);
+  box-shadow: 0 0 20px rgba(0,255,221,0.04);
   padding: 1.2rem 1.5rem;
 }
 .panel-header {
@@ -507,6 +549,7 @@ main {
 .log-panel {
   background: var(--panel);
   border: 1px solid var(--border);
+  box-shadow: 0 0 20px rgba(0,255,221,0.04);
   padding: 1.2rem 1.5rem;
   display: flex; flex-direction: column;
 }
@@ -524,7 +567,7 @@ main {
 .log-entry {
   border-left: 2px solid;
   padding: 0.5rem 0.8rem;
-  background: rgba(255,255,255,0.02);
+  background: var(--bg3);
   animation: slideIn 0.3s ease;
 }
 @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
@@ -862,7 +905,7 @@ main {
   background: rgba(4,8,12,0.97);
   flex-direction: column;
 }
-[data-theme="light"] #rankingsModal { background: rgba(230,238,248,0.98); }
+[data-theme="light"] #rankingsModal { background: rgba(237,242,247,0.98); }
 #rankingsModal.show { display: flex; }
 
 .rank-header {
@@ -1431,13 +1474,20 @@ main {
         <div class="map-search-results" id="mapSearchResults"></div>
       </div>
       <!-- Zoom buttons -->
-      <div class="map-zoom-btns">
+      <!-- Sidebar reopen button -->
+  <button id="sidebarOpenBtn" onclick="openSidebarInfo()" title="Show legend & info"
+    style="display:none;position:absolute;top:10px;left:10px;z-index:500;
+    background:rgba(8,12,16,0.95);border:1px solid var(--teal);color:var(--teal);
+    width:34px;height:34px;align-items:center;justify-content:center;cursor:pointer;
+    font-size:1rem;transition:all 0.2s;">›</button>
+
+  <div class="map-zoom-btns">
         <button class="map-zoom-btn" onclick="mapZoomIn()" title="Zoom in">+</button>
         <button class="map-zoom-btn" onclick="mapZoomOut()" title="Zoom out">−</button>
       </div>
     </div>
     <div class="map-sidebar">
-      <div class="map-sidebar-header">AQI LEGEND — US EPA SCALE</div>
+      <div class="map-sidebar-header" style="display:flex;align-items:center;justify-content:space-between;">AQI LEGEND — US EPA SCALE<button class="sidebar-close-info" onclick="closeSidebarInfo()" title="Close panel">✕</button></div>
       <div class="map-legend">
         <div class="legend-title">AIR QUALITY INDEX</div>
         <div class="legend-item"><div class="legend-dot" style="background:#00e676"></div>0–50 · Good</div>
@@ -1454,7 +1504,6 @@ main {
       </div>
       <div class="sidebar-panel-header">
         <span class="map-zoom-hint" style="border:none;padding:0;" id="mapZoomHint">🔍 Scroll to zoom · Click</span>
-        <button class="sidebar-close-info" onclick="closeSidebarInfo()" title="Close panel">✕</button>
       </div>
       <div id="quotaWidget" style="padding:0.6rem 1.2rem;border-top:1px solid var(--border);font-family:var(--mono);font-size:0.58rem;color:var(--text2);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
@@ -4953,8 +5002,12 @@ function mapZoomIn()  { if (aqiMap) aqiMap.zoomIn(); }
 function mapZoomOut() { if (aqiMap) aqiMap.zoomOut(); }
 
 function closeSidebarInfo() {
-  document.getElementById('selectedInfo').innerHTML =
-    '<div style="font-family:var(--mono);font-size:0.65rem;color:var(--text2);text-align:center;margin-top:2rem;">Click any region on the map to see detailed AQI data</div>';
+  document.querySelector('.map-sidebar').classList.add('hidden');
+  document.getElementById('sidebarOpenBtn').style.display = 'flex';
+}
+function openSidebarInfo() {
+  document.querySelector('.map-sidebar').classList.remove('hidden');
+  document.getElementById('sidebarOpenBtn').style.display = 'none';
 }
 
 // ══════════════════════════════════════════════════════════════════
