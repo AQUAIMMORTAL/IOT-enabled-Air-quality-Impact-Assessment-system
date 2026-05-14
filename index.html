@@ -5153,12 +5153,35 @@ window.addEventListener('load', () => {
 
 </script>
 <script>
-  // ── Aeromatrics PWA — Service Worker Registration ──
+  // ── Aeromatrics PWA — Service Worker Registration + Auto-Update ──
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('[SW] Aeromatrics SW registered', reg.scope))
-        .catch(err => console.warn('[SW] Registration failed', err));
+
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      console.log('[SW] Aeromatrics SW registered', reg.scope);
+
+      // Check for updates every 60 seconds — catches users who leave the
+      // tab open for hours without navigating (browser only auto-checks on navigation).
+      setInterval(() => reg.update(), 60_000);
+
+    }).catch(err => console.warn('[SW] Registration failed', err));
+
+    // When the new SW activates, it posts UPDATE_AVAILABLE to all tabs.
+    // We reload immediately so users always get the latest code.
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.type === 'UPDATE_AVAILABLE') {
+        console.log('[SW] New version detected — reloading for latest update…');
+        window.location.reload();
+      }
+    });
+
+    // Safety net: if the page was restored from back/forward cache AFTER
+    // a SW swap, a waiting SW might exist — reload to activate it.
+    window.addEventListener('pageshow', event => {
+      if (event.persisted) {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg?.waiting) window.location.reload();
+        });
+      }
     });
   }
 
