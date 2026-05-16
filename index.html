@@ -11,23 +11,33 @@
 <meta name="apple-mobile-web-app-title" content="Aeromatrics">
 <link rel="manifest" href="manifest.json">
 <script>
-// ── Aeromatrics Firebase Config — inlined for ES module access ───
-window.FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAq2_CWMha7bS3Wa3kX7W-5_RtD1UR0yuY",
-  authDomain:        "aerometrics-b5c84.firebaseapp.com",
-  databaseURL:       "https://aerometrics-b5c84-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "aerometrics-b5c84",
-  storageBucket:     "aerometrics-b5c84.firebasestorage.app",
-  messagingSenderId: "967860440137",
-  appId:             "1:967860440137:web:8ea70c1dae28e394890398",
-  measurementId:     "G-4530J83Z4Q",
-};
+// ── Aeromatrics Bootstrap — fetch all config from backend ─────────
+// Nothing is hardcoded here. window.FIREBASE_CONFIG and window.AERO_CF_BASE
+// are populated by loadAeroConfig() before firebase-backend.js runs.
+// This <script> intentionally has no keys.
+window.__aeroConfigReady = (async () => {
+  const CF_BASE_BOOTSTRAP = 'https://asia-southeast1-aerometrics-b5c84.cloudfunctions.net';
+  try {
+    const res = await fetch(`${CF_BASE_BOOTSTRAP}/getClientConfig`);
+    if (!res.ok) throw new Error(`Config fetch failed: ${res.status}`);
+    const cfg = await res.json();
+    window.FIREBASE_CONFIG  = cfg.firebaseConfig;
+    window.AERO_CF_BASE     = cfg.cfBase;
+    window.AERO_VAPID_KEY   = cfg.vapidPublicKey;
+    window.AERO_IQAIR_BUDGET = cfg.iqairBudget;
+    console.log('[Aeromatrics] Config loaded from backend ✓');
+  } catch (e) {
+    console.error('[Aeromatrics] Failed to load backend config:', e);
+    // Fallback so the page doesn't hard-break — firebase-backend.js checks for this
+    window.FIREBASE_CONFIG = null;
+  }
+})();
 </script>
 <script type="module" src="firebase-backend.js"></script>
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Aeromatrics — India Air Quality Monitor</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <script src="config.js"></script>
+  <!-- config.js removed — all keys served by getClientConfig Cloud Function -->
 <script src="aero-assistant.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -3072,18 +3082,19 @@ function aqiLabel(aqi) {
   return               { text: 'HAZARDOUS',           color: '#7b1fa2' };
 }
 
-const AQICN_TOKEN   = CONFIG.AQICN_TOKEN;
-const IQAIR_KEY     = CONFIG.IQAIR_KEY;
-const GOOGLE_AQ_KEY = CONFIG.GOOGLE_AQ_KEY;
-const NASA_TOKEN    = CONFIG.NASA_TOKEN || '';
+// ── All API keys removed from frontend — proxied through Cloud Functions ──────
+// AERO_CF_BASE is set by the bootstrap <script> at page top via getClientConfig.
+// Direct API keys (AQICN, IQAir, Google AQ, NASA) no longer exist in this file.
+const CF_BASE = window.AERO_CF_BASE || 'https://asia-southeast1-aerometrics-b5c84.cloudfunctions.net';
 
 // ── IQAIR QUOTA MANAGER ───────────────────────────────────────────────────────
-// Budget: 10,000 calls/month → target ≤9,500 (safety headroom).
+// Budget limits come from the backend config; fall back to safe defaults.
 // 2 users, ~30 days → 158 calls/user/day absolute max.
+const _iqb = window.AERO_IQAIR_BUDGET || {};
 // With caching, real usage should be <50/day combined.
 // Quota is persisted in localStorage so it survives page reloads.
-const IQAIR_MONTHLY_BUDGET = CONFIG.IQAIR_MONTHLY_BUDGET;
-const IQAIR_DAILY_HARD_CAP = CONFIG.IQAIR_DAILY_HARD_CAP;
+const IQAIR_MONTHLY_BUDGET = _iqb.monthly  || 9500;
+const IQAIR_DAILY_HARD_CAP = _iqb.dailyCap || 158;
 
 // ── IQAIR RATE LIMITER ────────────────────────────────────────────────────────
 // IQAir free tier: 10,000 calls/month hard limit + undocumented per-second cap.
@@ -3295,10 +3306,12 @@ async function fetchFromWAQIBounds(lat, lon, radiusDeg = 0.5) {
     const latMax = (lat + radiusDeg).toFixed(4);
     const lonMin = (lon - radiusDeg).toFixed(4);
     const lonMax = (lon + radiusDeg).toFixed(4);
-    const IS_LOCAL = ['localhost','127.0.0.1'].includes(window.location.hostname);
-    const WAQI_BASE = IS_LOCAL ? 'https://corsproxy.io/?' : '';
-    const url = `${WAQI_BASE}https://api.waqi.info/map/bounds/?latlng=${latMin},${lonMin},${latMax},${lonMax}&token=${AQICN_TOKEN}`;
-    const res  = await fetch(url);
+    // No CORS proxy needed — token stays on backend
+    const res  = await fetch(`${CF_BASE}/waqiProxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'bounds', latMin, lonMin, latMax, lonMax }),
+    });
     const json = await res.json();
     if (json.status !== 'ok' || !Array.isArray(json.data) || json.data.length === 0) return null;
 
@@ -3383,8 +3396,11 @@ async function _fetchFromIQAirRaw(lat, lon, isDistrict = false) {
     return null;
   }
   try {
-    const url = `https://api.airvisual.com/v2/nearest_city?lat=${lat}&lon=${lon}&key=${IQAIR_KEY}`;
-    const res = await fetch(url);
+    const res = await fetch(`${CF_BASE}/iqairProxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lon }),
+    });
     const json = await res.json();
     if (json.status !== 'success') {
       console.warn(`[IQAir] API error: ${json.message || json.status}`);
@@ -3442,8 +3458,11 @@ async function fetchFromWAQISearch(districtName, lat, lon) {
     ].filter((v, i, a) => a.indexOf(v) === i);
 
     for (const q of queries) {
-      const url = `https://api.waqi.info/search/?keyword=${encodeURIComponent(q)}&token=${AQICN_TOKEN}`;
-      const res  = await fetch(url);
+      const res  = await fetch(`${CF_BASE}/waqiProxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'search', keyword: q }),
+      });
       const json = await res.json();
       if (json.status !== 'ok' || !Array.isArray(json.data) || json.data.length === 0) continue;
 
@@ -3517,14 +3536,20 @@ async function fetchFromNASAPOWER(lat, lon) {
     //   PM25_DRY — Dry surface PM2.5 mass concentration (µg/m³)
     //   AOD_55   — Aerosol Optical Depth at 550nm (dimensionless)
     //   RH2M     — Relative humidity at 2m (for hygroscopic growth correction)
-    const url = `https://power.larc.nasa.gov/api/temporal/daily/point` +
-      `?parameters=PM25_DRY,AOD_55,RH2M` +
-      `&community=AG` +
-      `&longitude=${lon.toFixed(4)}&latitude=${lat.toFixed(4)}` +
-      `&start=${dateStr}&end=${dateStr}` +
-      `&format=JSON`;
+    // Proxied through backend
+    const res  = await fetch(
+      `${CF_BASE}/nasaPowerProxy?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&start=${dateStr}&end=${dateStr}`
+    );
 
-    const res  = await fetch(url);
+
+
+
+
+
+
+
+
+
     if (!res.ok) return null;
     const json = await res.json();
 
@@ -3697,23 +3722,11 @@ async function fetchFromOpenMeteo(lat, lon) {
 // Returns Universal AQI + India CPCB AQI + all 6 pollutants at 500m resolution.
 // Free tier: 1,000 calls/day — no quota manager needed (generous limit).
 async function fetchFromGoogleAQ(lat, lon) {
-  if (!GOOGLE_AQ_KEY) return null;
   try {
-    const url = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${GOOGLE_AQ_KEY}`;
-    const res = await fetch(url, {
+    const res = await fetch(`${CF_BASE}/googleAQProxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        location: { latitude: lat, longitude: lon },
-        universalAqi: true,
-        extraComputations: [
-          'LOCAL_AQI',
-          'POLLUTANT_CONCENTRATION',
-          'DOMINANT_POLLUTANT_CONCENTRATION',
-          'HEALTH_RECOMMENDATIONS',
-        ],
-        languageCode: 'en',
-      }),
+      body: JSON.stringify({ lat, lon }),
     });
     if (!res.ok) {
       console.warn(`[GoogleAQ] HTTP ${res.status}`);
@@ -5403,50 +5416,19 @@ window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       console.log('[SW] Aeromatrics SW registered', reg.scope);
 
-      // ── Helper: given a SW in the `installing` state, wait for it to
-      //    reach `installed` (waiting), then skip waiting so it activates
-      //    immediately, then reload all tabs to pick up the new code.
-      function awaitInstalledThenReload(sw) {
-        sw.addEventListener('statechange', () => {
-          if (sw.state === 'installed') {
-            console.log('[SW] New version installed — activating immediately…');
-            // Tell the waiting SW to skip the wait and activate now.
-            sw.postMessage({ type: 'SKIP_WAITING' });
-          }
-          if (sw.state === 'activated') {
-            console.log('[SW] New version active — reloading…');
-            window.location.reload();
-          }
-        });
-      }
-
-      // Case A: a new SW is found while this page is open (most common case).
-      reg.addEventListener('updatefound', () => {
-        console.log('[SW] Update found — new SW installing…');
-        awaitInstalledThenReload(reg.installing);
-      });
-
-      // Case B: page loaded with a SW already waiting (e.g. previous tab
-      //         detected the update but didn't reload, or a hard refresh).
-      if (reg.waiting) {
-        console.log('[SW] Waiting SW found on load — activating…');
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-        // The controllerchange event fires once the new SW takes over.
-      }
-
       // Check for updates every 60 seconds — catches users who leave the
-      // tab open for hours without navigating.
+      // tab open for hours without navigating (browser only auto-checks on navigation).
       setInterval(() => reg.update(), 60_000);
 
     }).catch(err => console.warn('[SW] Registration failed', err));
 
-    // When the new SW claims this client (after skipWaiting), reload once.
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (refreshing) return;
-      refreshing = true;
-      console.log('[SW] Controller changed — reloading for latest code…');
-      window.location.reload();
+    // When the new SW activates, it posts UPDATE_AVAILABLE to all tabs.
+    // We reload immediately so users always get the latest code.
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.type === 'UPDATE_AVAILABLE') {
+        console.log('[SW] New version detected — reloading for latest update…');
+        window.location.reload();
+      }
     });
 
     // Safety net: if the page was restored from back/forward cache AFTER
@@ -5454,9 +5436,7 @@ window.addEventListener('load', () => {
     window.addEventListener('pageshow', event => {
       if (event.persisted) {
         navigator.serviceWorker.getRegistration().then(reg => {
-          if (reg?.waiting) {
-            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          }
+          if (reg?.waiting) window.location.reload();
         });
       }
     });
