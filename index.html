@@ -4106,14 +4106,22 @@ const LoginPage = {
   },
 };
 
-// ── Show login page immediately — before Firebase resolves auth ──
-// Firebase onAuthStateChanged in firebase-backend.js will hide it
-// once the user is confirmed logged in.
+// ── Show login page — wait for Firebase auth before showing it ──
 document.addEventListener('DOMContentLoaded', () => {
   const lp = document.getElementById('loginPage');
   const ap = document.getElementById('appShell');
-  if (lp) lp.classList.add('show');
-  if (ap) ap.classList.remove('show');
+  // On mobile after Google redirect, onAuthStateChanged fires within ~2s
+  // Don't immediately show login — wait so we don't flash it for logged-in users
+  let authResolved = false;
+  window.__authResolved = () => {
+    authResolved = true;
+  };
+  setTimeout(() => {
+    if (!authResolved) {
+      if (lp) lp.classList.add('show');
+      if (ap) ap.classList.remove('show');
+    }
+  }, 2500);
 });
 
 // Expose LoginPage globally so firebase-backend.js (ES module) can call it
