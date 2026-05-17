@@ -1559,27 +1559,40 @@ main {
 [data-theme="light"] #toggle-text span:first-child { color: rgba(15,23,42,.45) !important; }
 [data-theme="light"] #loginPage .auth-particle { background: rgba(34,197,94,.3); }
 
-/* Mobile: hide left panel, show only right */
+/* ── Mobile: full-screen bg, form floats over it ── */
 @media (max-width: 768px) {
+  #loginPage {
+    background: linear-gradient(145deg, rgba(10,30,5,0.28) 0%, rgba(60,80,0,0.18) 45%, rgba(10,30,5,0.28) 100%),
+                url('login-bg.png') center center / cover no-repeat;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
   .auth-left { display: none; }
   .auth-right {
     width: 100%; max-width: 100%;
-    min-height: 100dvh;
+    min-height: auto;
     border-left: none;
-    padding: 48px 24px 40px;
+    border-top: 1px solid rgba(74,222,128,.2);
+    padding: 32px 24px 48px;
     box-sizing: border-box;
-    background: rgba(2,14,7,0.7);
-    backdrop-filter: blur(12px);
+    background: rgba(2,14,7,0.72);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 20px 20px 0 0;
   }
-  .auth-input { font-size: 16px; padding: 12px 12px 12px 40px; }
+  .auth-input { font-size: 16px; padding: 12px 12px 12px 40px; background: rgba(0,0,0,0.45); }
   .auth-input-icon { height: 46px; }
   .auth-input.with-toggle { padding-right: 64px; }
   .pass-toggle-btn { height: 46px; }
-  .auth-google-btn { padding: 12px; }
+  .auth-google-btn { padding: 12px; background: rgba(0,0,0,0.45); }
   .btn-login { padding: 13px; }
+  .auth-tabs { background: rgba(0,0,0,0.45); }
+  .auth-field-label { background: none; color: #e6f4ec; }
+  #toggle-text { background: none; color: #e6f4ec; }
+  #forgot-pw-text { background: none; }
 }
 @media (max-width: 360px) {
-  .auth-right { padding: 36px 16px 32px; }
+  .auth-right { padding: 28px 16px 40px; }
 }
 
 /* Dashboard hidden until logged in */
