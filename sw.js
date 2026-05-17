@@ -16,7 +16,7 @@
 // ⬆️  Bump this ONLY when you want to wipe tile/icon caches (rare).
 //     Your app code (index.html, .js files) updates automatically
 //     without touching this — they are always fetched from network.
-const CACHE_NAME = 'aeromatrics-v3';
+const CACHE_NAME = 'aeromatrics-v4';
 
 // Only truly static assets that never change belong here.
 // DO NOT put index.html or your own .js files here — they must
@@ -74,7 +74,7 @@ self.addEventListener('fetch', event => {
   // ── 1. index.html — always network-first ────────────────────────
   //    This is the most important rule. Fresh HTML = fresh app.
   //    Falls back to cache only if completely offline.
-  if (isSameOrigin && (url.pathname.endsWith('/') || url.pathname.endsWith('index.html'))) {
+  if (isSameOrigin && (url.pathname.endsWith('/') || url.pathname.endsWith('index.html') || url.pathname.endsWith('mobile-login.html'))) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
@@ -83,7 +83,7 @@ self.addEventListener('fetch', event => {
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           return response;
         })
-        .catch(() => caches.match('./index.html'))
+        .catch(() => url.pathname.endsWith('mobile-login.html') ? caches.match('./mobile-login.html') : caches.match('./index.html'))
     );
     return;
   }
