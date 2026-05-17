@@ -362,6 +362,17 @@ window.__aeroReady = new Promise(resolve => {
 <script>
   let mCurrentTab = 'login';
 
+  // Wait for both config + AeroAuth to be ready
+  function waitReady() {
+    return new Promise(resolve => {
+      const check = () => {
+        if (window.AeroAuth) resolve();
+        else setTimeout(check, 50);
+      };
+      Promise.resolve(window.__aeroConfigReady).then(check);
+    });
+  }
+
   function mSetTab(tab) {
     mCurrentTab = tab;
     document.getElementById('m-tab-login').classList.toggle('active', tab === 'login');
@@ -370,8 +381,8 @@ window.__aeroReady = new Promise(resolve => {
     document.getElementById('m-forgot-row').style.display = tab === 'login' ? '' : 'none';
     document.getElementById('m-submit-btn').textContent = tab === 'login' ? 'LOGIN' : 'REGISTER';
     document.getElementById('m-toggle-text').innerHTML = tab === 'login'
-      ? 'Don\'t have an account? <span class="m-link" onclick="mSetTab(\'register\')">Register</span>'
-      : 'Already have an account? <span class="m-link" onclick="mSetTab(\'login\')">Login</span>';
+      ? 'Don't have an account? <span class="m-link" onclick="mSetTab('register')">Register</span>'
+      : 'Already have an account? <span class="m-link" onclick="mSetTab('login')">Login</span>';
     mShowError('');
   }
 
@@ -389,34 +400,71 @@ window.__aeroReady = new Promise(resolve => {
   }
 
   async function mGoogleSignIn() {
-    await window.__aeroConfigReady;
-    if (typeof LoginPage !== 'undefined') LoginPage.googleSignIn();
+    console.log('[Mobile] Google sign-in clicked');
+    try {
+      await waitReady();
+      console.log('[Mobile] AeroAuth ready, calling googleLogin');
+      const result = await window.AeroAuth.googleLogin();
+      if (result && !result.ok && result.error) mShowError(result.error);
+    } catch(e) {
+      console.error('[Mobile] Google sign-in error:', e);
+      mShowError(e.message || 'Google sign-in failed.');
+    }
   }
 
   async function mSubmit() {
-    await window.__aeroConfigReady;
+    console.log('[Mobile] Submit clicked');
     const email = document.getElementById('m-email').value.trim();
     const pass  = document.getElementById('m-password').value;
     if (!email || !pass) { mShowError('Please enter email and password.'); return; }
+
     const btn = document.getElementById('m-submit-btn');
     btn.disabled = true;
     btn.textContent = mCurrentTab === 'login' ? 'LOGGING IN...' : 'REGISTERING...';
+    mShowError('');
+
     try {
-      if (typeof LoginPage !== 'undefined') {
-        if (mCurrentTab === 'login') await LoginPage.submit();
-        else await LoginPage.submit();
+      await waitReady();
+      console.log('[Mobile] AeroAuth ready, submitting');
+      let result;
+      if (mCurrentTab === 'login') {
+        result = await window.AeroAuth.login(email, pass);
+      } else {
+        const name = (document.getElementById('m-name')?.value || '').trim();
+        result = await window.AeroAuth.register(email, pass, name);
+      }
+      console.log('[Mobile] Auth result:', result);
+      if (result.ok) {
+        window.location.replace('index.html');
+      } else {
+        mShowError(result.error || 'Authentication failed.');
       }
     } catch(e) {
+      console.error('[Mobile] Submit error:', e);
       mShowError(e.message || 'Something went wrong.');
     }
+
     btn.disabled = false;
     btn.textContent = mCurrentTab === 'login' ? 'LOGIN' : 'REGISTER';
   }
 
   async function mForgotPassword() {
-    await window.__aeroConfigReady;
-    if (typeof LoginPage !== 'undefined') LoginPage.forgotPassword();
+    const email = document.getElementById('m-email').value.trim();
+    if (!email) { mShowError('Enter your email above first.'); return; }
+    await waitReady();
+    const result = await window.AeroAuth.resetPassword(email);
+    if (result.ok) { mShowError(''); alert('Password reset email sent!'); }
+    else mShowError(result.error || 'Reset failed.');
   }
+
+  // Once AeroAuth loads, redirect if already signed in
+  waitReady().then(() => {
+    if (window.AeroUI) {
+      window.AeroUI.updateAuthState = (loggedIn) => {
+        if (loggedIn) window.location.replace('index.html');
+      };
+    }
+  });
 </script>
 
 </body>
