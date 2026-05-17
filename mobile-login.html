@@ -10,20 +10,32 @@
 <title>Aeromatrics — Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script>
+// Step 1 — fetch remote config
 window.__aeroConfigReady = (async () => {
   const CF_BASE_BOOTSTRAP = 'https://asia-southeast1-aerometrics-b5c84.cloudfunctions.net';
   try {
     const res = await fetch(`${CF_BASE_BOOTSTRAP}/getClientConfig`);
     if (!res.ok) throw new Error(`Config fetch failed: ${res.status}`);
     const cfg = await res.json();
-    window.FIREBASE_CONFIG  = cfg.firebaseConfig;
-    window.AERO_CF_BASE     = cfg.cfBase;
-    window.AERO_VAPID_KEY   = cfg.vapidPublicKey;
+    window.FIREBASE_CONFIG   = cfg.firebaseConfig;
+    window.AERO_CF_BASE      = cfg.cfBase;
+    window.AERO_VAPID_KEY    = cfg.vapidPublicKey;
     window.AERO_IQAIR_BUDGET = cfg.iqairBudget;
   } catch (e) {
     window.FIREBASE_CONFIG = null;
   }
 })();
+
+// Step 2 — promise that resolves once AeroAuth is available on window
+window.__aeroReady = new Promise(resolve => {
+  // firebase-backend.js is type=module — it runs after inline scripts
+  // Poll until AeroAuth is attached
+  const check = () => {
+    if (window.AeroAuth && window.AeroUI) resolve();
+    else setTimeout(check, 50);
+  };
+  check();
+});
 </script>
 <script type="module" src="firebase-backend.js"></script>
 
