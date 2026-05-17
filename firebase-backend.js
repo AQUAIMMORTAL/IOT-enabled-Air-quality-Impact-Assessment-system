@@ -21,7 +21,13 @@ import { getFirestore, collection, addDoc, getDocs,
 import { getAnalytics }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js';
 
-// ── Init ─────────────────────────────────────────────────────────
+// ── Init — wait for config before initializing Firebase ──────────
+await window.__aeroConfigReady;
+
+if (!window.FIREBASE_CONFIG) {
+  console.error('[Firebase] Config not available — cannot initialize.');
+} 
+
 const app        = initializeApp(window.FIREBASE_CONFIG);
 const analytics  = getAnalytics(app);
 const auth       = getAuth(app);
