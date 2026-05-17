@@ -2,7 +2,7 @@
 //  aero-assistant.js — Aeromatrics AI Assistant v2
 //  Powered by Google Gemini 2.5 Flash + Google Search Grounding
 //  Live AQI · Health Precautions · Forecasts · Sensor Analysis
-//  ⚠  Requires CONFIG.GEMINI_KEY in config.js
+//  API key lives in functions/index.js only — never committed here.
 // ══════════════════════════════════════════════════════════════════
 
 (function () {
@@ -473,11 +473,9 @@ RESPONSE FORMAT RULES:
     text = text.trim();
     if (!text || isTyping) return;
 
-    const key = (typeof CONFIG !== 'undefined' && CONFIG.GEMINI_KEY) ? CONFIG.GEMINI_KEY : null;
-    if (!key || key === 'YOUR_GEMINI_API_KEY_HERE') {
-      appendMsg('assistant', '⚠ **AeroAssist not configured.** Add your Gemini API key to `CONFIG.GEMINI_KEY` in `config.js`.\n\nGet a free key at: https://aistudio.google.com/app/apikey');
-      return;
-    }
+    // API key lives in functions/index.js only — never in this file.
+    // All Gemini calls go through the /aeroAssistProxy Cloud Function.
+    const CF_BASE = window.AERO_CF_BASE || 'https://asia-southeast1-aerometrics-b5c84.cloudfunctions.net';
 
     appendMsg('user', text);
     history.push({ role: 'user', parts: [{ text }] });
@@ -496,8 +494,8 @@ RESPONSE FORMAT RULES:
       };
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
-        { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+        `${CF_BASE}/aeroAssistProxy`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
       );
 
       if (!res.ok) {
@@ -525,7 +523,7 @@ RESPONSE FORMAT RULES:
 
     } catch (e) {
       typingEl.remove();
-      appendMsg('assistant', `⚠ **Error:** ${e.message}\n\nCheck your Gemini API key and internet connection.`);
+      appendMsg('assistant', `⚠ **Error:** ${e.message}\n\nCheck your internet connection or backend deployment.`);
       console.error('[AeroAssist]', e);
     } finally {
       isTyping = false;
