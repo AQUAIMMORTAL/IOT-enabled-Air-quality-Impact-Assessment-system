@@ -10,6 +10,14 @@
 <title>Aeromatrics — Login</title>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
 <script>
+  // Unregister service worker on mobile login page — it intercepts Firebase requests
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(reg => reg.unregister());
+    });
+  }
+</script>
+<script>
 // Step 1 — fetch remote config
 window.__aeroConfigReady = (async () => {
   const CF_BASE_BOOTSTRAP = 'https://asia-southeast1-aerometrics-b5c84.cloudfunctions.net';
