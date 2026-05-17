@@ -8,7 +8,8 @@ import { initializeApp }
 import { getAuth, signInWithEmailAndPassword,
          createUserWithEmailAndPassword, signOut,
          onAuthStateChanged, GoogleAuthProvider,
-         signInWithPopup, sendPasswordResetEmail }
+         signInWithPopup, signInWithRedirect,
+         getRedirectResult, sendPasswordResetEmail }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getDatabase, ref, onValue, set,
          serverTimestamp as rtTS }
@@ -28,7 +29,29 @@ const rtdb       = getDatabase(app);
 const db         = getFirestore(app);
 const googleProv = new GoogleAuthProvider();
 
+const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 let currentUser = null;
+
+// ── Handle Google redirect result on mobile ───────────────────────
+getRedirectResult(auth).then(async result => {
+  if (!result?.user) return;
+  const user    = result.user;
+  const userRef = doc(db, 'users', user.uid);
+  const snap    = await getDoc(userRef);
+  if (!snap.exists()) {
+    await setDoc(userRef, {
+      email:           user.email,
+      displayName:     user.displayName || user.email.split('@')[0],
+      photoURL:        user.photoURL || null,
+      provider:        'google',
+      createdAt:       serverTimestamp(),
+      savedLocations:  [],
+      alertThresholds: { aqi: 150, gas: 300, temperature: 40 },
+      preferences:     { defaultState: 'Uttar Pradesh' },
+    });
+  }
+}).catch(e => console.warn('[Firebase] Redirect result error:', e.message));
 
 // ── Auth State — drives login page show/hide ──────────────────────
 onAuthStateChanged(auth, async user => {
@@ -82,9 +105,14 @@ const AeroAuth = {
     }
   },
 
-  // Google Sign-In
+  // Google Sign-In — popup on desktop, redirect on mobile
   async googleLogin() {
     try {
+      if (isMobile()) {
+        // Redirect flow — page will reload, result handled by getRedirectResult above
+        await signInWithRedirect(auth, googleProv);
+        return { ok: true, user: null }; // unreachable, page redirects
+      }
       const result  = await signInWithPopup(auth, googleProv);
       const user    = result.user;
       // Create/merge Firestore profile for Google users
