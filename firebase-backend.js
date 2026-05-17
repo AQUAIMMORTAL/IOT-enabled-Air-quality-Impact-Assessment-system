@@ -62,6 +62,8 @@ getRedirectResult(auth).then(async result => {
 // ── Auth State — drives login page show/hide ──────────────────────
 onAuthStateChanged(auth, async user => {
   currentUser = user;
+  // Tell index.html that auth has resolved — prevents login flash on redirect
+  if (typeof window.__authResolved === 'function') window.__authResolved();
   if (user) {
     console.log('[Firebase] Signed in:', user.email);
     await AeroAuth._syncProfile(user);
