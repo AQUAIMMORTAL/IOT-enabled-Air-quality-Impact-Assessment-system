@@ -46,12 +46,6 @@ window.__aeroConfigReady = (async () => {
 </head>
 <body>
 <script>
-  // Redirect mobile users to dedicated mobile login page
-  if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.innerWidth < 768) {
-    window.location.replace('mobile-login.html');
-  }
-</script>
-<script>
   // Force-clear AQI cache on every load so corrected fetch logic always runs fresh
   try {
     ['aeromatrics_cache_v1','aeromatrics_cache_v2','aeromatrics_cache_v3','aeromatrics_cache_v4',
