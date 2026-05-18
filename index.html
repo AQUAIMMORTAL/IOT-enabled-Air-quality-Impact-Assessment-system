@@ -4110,18 +4110,24 @@ const LoginPage = {
 document.addEventListener('DOMContentLoaded', () => {
   const lp = document.getElementById('loginPage');
   const ap = document.getElementById('appShell');
-  // On mobile after Google redirect, onAuthStateChanged fires within ~2s
-  // Don't immediately show login — wait so we don't flash it for logged-in users
-  let authResolved = false;
-  window.__authResolved = () => {
-    authResolved = true;
-  };
-  setTimeout(() => {
-    if (!authResolved) {
+  let userLoggedIn = false;
+  // Called by firebase-backend.js when auth state is known
+  window.__authResolved = (loggedIn) => {
+    userLoggedIn = loggedIn;
+    if (!loggedIn) {
+      // Not logged in — show login page now
       if (lp) lp.classList.add('show');
       if (ap) ap.classList.remove('show');
     }
-  }, 2500);
+    // If logged in, LoginPage.hide() in onAuthStateChanged handles it
+  };
+  // Fallback: if Firebase takes too long, show login page
+  setTimeout(() => {
+    if (!userLoggedIn && !lp.classList.contains('show')) {
+      if (lp) lp.classList.add('show');
+      if (ap) ap.classList.remove('show');
+    }
+  }, 3000);
 });
 
 // Expose LoginPage globally so firebase-backend.js (ES module) can call it
